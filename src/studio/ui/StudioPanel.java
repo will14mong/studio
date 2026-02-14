@@ -175,7 +175,7 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
                     copyAction.putValue(Action.SHORT_DESCRIPTION,"Copy the selected text to the clipboard");
                     copyAction.putValue(Action.SMALL_ICON,Util.COPY_ICON);
                     copyAction.putValue(Action.NAME,I18n.getString("Copy"));
-                    copyAction.putValue(Action.MNEMONIC_KEY,new Integer(KeyEvent.VK_C));
+                    copyAction.putValue(Action.MNEMONIC_KEY, KeyEvent.VK_C);
                     copyAction.putValue(Action.ACCELERATOR_KEY,KeyStroke.getKeyStroke(KeyEvent.VK_C,menuShortcutKeyMask));
                 }
                 else if (actions[i] instanceof BaseKit.CutAction) {
@@ -183,7 +183,7 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
                     cutAction.putValue(Action.SHORT_DESCRIPTION,"Cut the selected text");
                     cutAction.putValue(Action.SMALL_ICON,Util.CUT_ICON);
                     cutAction.putValue(Action.NAME,I18n.getString("Cut"));
-                    cutAction.putValue(Action.MNEMONIC_KEY,new Integer(KeyEvent.VK_T));
+                    cutAction.putValue(Action.MNEMONIC_KEY, KeyEvent.VK_T);
                     cutAction.putValue(Action.ACCELERATOR_KEY,KeyStroke.getKeyStroke(KeyEvent.VK_X,menuShortcutKeyMask));
                 }
                 else if (actions[i] instanceof BaseKit.PasteAction) {
@@ -191,7 +191,7 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
                     pasteAction.putValue(Action.SHORT_DESCRIPTION,"Paste text from the clipboard");
                     pasteAction.putValue(Action.SMALL_ICON,Util.PASTE_ICON);
                     pasteAction.putValue(Action.NAME,I18n.getString("Paste"));
-                    pasteAction.putValue(Action.MNEMONIC_KEY,new Integer(KeyEvent.VK_P));
+                    pasteAction.putValue(Action.MNEMONIC_KEY, KeyEvent.VK_P);
                     pasteAction.putValue(Action.ACCELERATOR_KEY,KeyStroke.getKeyStroke(KeyEvent.VK_V,menuShortcutKeyMask));
                 }
                 else if (actions[i] instanceof ExtKit.FindAction) {
@@ -199,7 +199,7 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
                     findAction.putValue(Action.SHORT_DESCRIPTION,"Find text in the document");
                     findAction.putValue(Action.SMALL_ICON,Util.FIND_ICON);
                     findAction.putValue(Action.NAME,I18n.getString("Find"));
-                    findAction.putValue(Action.MNEMONIC_KEY,new Integer(KeyEvent.VK_F));
+                    findAction.putValue(Action.MNEMONIC_KEY, KeyEvent.VK_F);
                     findAction.putValue(Action.ACCELERATOR_KEY,KeyStroke.getKeyStroke(KeyEvent.VK_F,menuShortcutKeyMask));
                 }
                 else if (actions[i] instanceof ExtKit.ReplaceAction) {
@@ -207,7 +207,7 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
                     replaceAction.putValue(Action.SHORT_DESCRIPTION,"Replace text in the document");
                     replaceAction.putValue(Action.SMALL_ICON,Util.REPLACE_ICON);
                     replaceAction.putValue(Action.NAME,I18n.getString("Replace"));
-                    replaceAction.putValue(Action.MNEMONIC_KEY,new Integer(KeyEvent.VK_R));
+                    replaceAction.putValue(Action.MNEMONIC_KEY, KeyEvent.VK_R);
                     replaceAction.putValue(Action.ACCELERATOR_KEY,KeyStroke.getKeyStroke(KeyEvent.VK_R,menuShortcutKeyMask));
                 }
                 else if (actions[i] instanceof BaseKit.SelectAllAction) {
@@ -215,7 +215,7 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
                     selectAllAction.putValue(Action.SHORT_DESCRIPTION,"Select all text in the document");
                     selectAllAction.putValue(Action.SMALL_ICON,null);
                     selectAllAction.putValue(Action.NAME,I18n.getString("SelectAll"));
-                    selectAllAction.putValue(Action.MNEMONIC_KEY,new Integer(KeyEvent.VK_A));
+                    selectAllAction.putValue(Action.MNEMONIC_KEY, KeyEvent.VK_A);
                     selectAllAction.putValue(Action.ACCELERATOR_KEY,KeyStroke.getKeyStroke(KeyEvent.VK_A,menuShortcutKeyMask));
                 }
                 else if (actions[i] instanceof ActionFactory.UndoAction) {
@@ -223,7 +223,7 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
                     undoAction.putValue(Action.SHORT_DESCRIPTION,"Undo the last change to the document");
                     undoAction.putValue(Action.SMALL_ICON,Util.UNDO_ICON);
                     undoAction.putValue(Action.NAME,I18n.getString("Undo"));
-                    undoAction.putValue(Action.MNEMONIC_KEY,new Integer(KeyEvent.VK_U));
+                    undoAction.putValue(Action.MNEMONIC_KEY, KeyEvent.VK_U);
                     undoAction.putValue(Action.ACCELERATOR_KEY,KeyStroke.getKeyStroke(KeyEvent.VK_Z,menuShortcutKeyMask));
                 }
                 else if (actions[i] instanceof ActionFactory.RedoAction) {
@@ -231,7 +231,7 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
                     redoAction.putValue(Action.SHORT_DESCRIPTION,"Redo the last change to the document");
                     redoAction.putValue(Action.SMALL_ICON,Util.REDO_ICON);
                     redoAction.putValue(Action.NAME,I18n.getString("Redo"));
-                    redoAction.putValue(Action.MNEMONIC_KEY,new Integer(KeyEvent.VK_R));
+                    redoAction.putValue(Action.MNEMONIC_KEY, KeyEvent.VK_R);
                     redoAction.putValue(Action.ACCELERATOR_KEY,KeyStroke.getKeyStroke(KeyEvent.VK_Y,menuShortcutKeyMask));
                 }
 
@@ -1015,7 +1015,7 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
         newFileAction = new UserAction(I18n.getString("New"),
                                         Util.NEW_DOCUMENT_ICON,
                                        "Create a blank script",
-                                       new Integer(KeyEvent.VK_N),
+                                        KeyEvent.VK_N,
                                        null) {
             public void actionPerformed(ActionEvent e) {
                 //   PrintUtilities.printComponent(textArea);
@@ -1026,7 +1026,7 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
         arrangeAllAction = new UserAction(I18n.getString("ArrangeAll"),
                                            Util.BLANK_ICON,
                                           "Arrange all windows on screen",
-                                          new Integer(KeyEvent.VK_A),
+                                          KeyEvent.VK_A,
                                           null) {
             public void actionPerformed(ActionEvent e) {
                 arrangeAll();
@@ -1036,7 +1036,7 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
         minMaxDividerAction = new UserAction(I18n.getString("MaximizeEditorPane"),
                                              Util.BLANK_ICON,
                                              "Maximize editor pane",
-                                             new Integer(KeyEvent.VK_M),
+                                             KeyEvent.VK_M,
                                              KeyStroke.getKeyStroke(KeyEvent.VK_M,menuShortcutKeyMask)) {
             public void actionPerformed(ActionEvent e) {
               minMaxDivider();
@@ -1046,7 +1046,7 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
         toggleDividerOrientationAction = new UserAction(I18n.getString("ToggleDividerOrientation"),
                                                          Util.BLANK_ICON,
                                                         "Toggle the window divider's orientation",
-                                                        new Integer(KeyEvent.VK_C),
+                                                        KeyEvent.VK_C,
                                                         null) {
             public void actionPerformed(ActionEvent e) {
                 toggleDividerOrientation();
@@ -1056,7 +1056,7 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
         closeFileAction = new UserAction(I18n.getString("Close"),
                                          Util.BLANK_ICON,
                                          "Close current document",
-                                         new Integer(KeyEvent.VK_C),
+                                         KeyEvent.VK_C,
                                          null) {
             public void actionPerformed(ActionEvent e) {
                 quitWindow();
@@ -1068,7 +1068,7 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
         openFileAction = new UserAction(I18n.getString("Open"),
                                         Util.FOLDER_ICON,
                                         "Open a script",
-                                        new Integer(KeyEvent.VK_O),
+                                        KeyEvent.VK_O,
                                         KeyStroke.getKeyStroke(KeyEvent.VK_O,menuShortcutKeyMask)) {
             public void actionPerformed(ActionEvent e) {
                 openFile();
@@ -1078,7 +1078,7 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
         openFileInNewWindowAction = new UserAction(I18n.getString("NewWindow"),
                                                    Util.BLANK_ICON,
                                                    "Open a new window",
-                                                   new Integer(KeyEvent.VK_N),
+                                                    KeyEvent.VK_N,
                                                    KeyStroke.getKeyStroke(KeyEvent.VK_N, menuShortcutKeyMask) ) {
             public void actionPerformed(ActionEvent e) {
                 new StudioPanel(server,null);
@@ -1088,7 +1088,7 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
         serverListAction = new UserAction(I18n.getString("ServerList"),
                 Util.TEXT_TREE_ICON,
                 "Show sever list",
-                new Integer(KeyEvent.VK_L),
+                KeyEvent.VK_L,
                 KeyStroke.getKeyStroke(KeyEvent.VK_L, menuShortcutKeyMask | Event.SHIFT_MASK) ) {
                         public void actionPerformed(ActionEvent e) {
                             if (serverList == null) {
@@ -1128,7 +1128,7 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
         editServerAction = new UserAction(I18n.getString("Edit"),
                                           Util.SERVER_INFORMATION_ICON,
                                           "Edit the server details",
-                                          new Integer(KeyEvent.VK_E),
+                                            KeyEvent.VK_E,
                                           null) {
             public void actionPerformed(ActionEvent e) {
                 Server s = new Server(server);
@@ -1157,7 +1157,7 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
         addServerAction = new UserAction(I18n.getString("Add"),
                                          Util.ADD_SERVER_ICON,
                                          "Configure a new server",
-                                         new Integer(KeyEvent.VK_A),
+                                         KeyEvent.VK_A,
                                          null) {
             public void actionPerformed(ActionEvent e) {
                 AddServerForm f = new AddServerForm(frame);
@@ -1177,7 +1177,7 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
         removeServerAction = new UserAction(I18n.getString("Remove"),
                                             Util.DELETE_SERVER_ICON,
                                             "Remove this server",
-                                            new Integer(KeyEvent.VK_R),
+                                            KeyEvent.VK_R,
                                             null) {
             public void actionPerformed(ActionEvent e) {
                 int choice = JOptionPane.showOptionDialog(frame,
@@ -1208,7 +1208,7 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
         saveFileAction = new UserAction(I18n.getString("Save"),
                                         Util.DISKS_ICON,
                                         "Save the script",
-                                        new Integer(KeyEvent.VK_S),
+                                        KeyEvent.VK_S,
                                         KeyStroke.getKeyStroke(KeyEvent.VK_S,menuShortcutKeyMask)) {
             public void actionPerformed(ActionEvent e) {
                 String filename = (String) textArea.getDocument().getProperty("filename");
@@ -1219,7 +1219,7 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
         saveAsFileAction = new UserAction(I18n.getString("SaveAs"),
                                           Util.SAVE_AS_ICON,
                                           "Save script as",
-                                          new Integer(KeyEvent.VK_A),
+                                            KeyEvent.VK_A,
                                           null) {
             public void actionPerformed(ActionEvent e) {
                 saveAsFile();
@@ -1229,7 +1229,7 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
         exportAction = new UserAction(I18n.getString("Export"),
                                       Util.EXPORT_ICON,
                                       "Export result set",
-                                      new Integer(KeyEvent.VK_E),
+                                        KeyEvent.VK_E,
                                       null) {
             public void actionPerformed(ActionEvent e) {
                 export();
@@ -1239,7 +1239,7 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
         chartAction = new UserAction(I18n.getString("Chart"),
                                      Util.CHART_ICON,
                                      "Chart current data set",
-                                     new Integer(KeyEvent.VK_E),
+                                     KeyEvent.VK_E,
                                      null) {
             public void actionPerformed(ActionEvent e) {
                 new LineChart((KTableModel) table.getModel());
@@ -1251,7 +1251,7 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
         stopAction = new UserAction(I18n.getString("Stop"),
                                     Util.STOP_ICON,
                                     "Stop the query",
-                                    new Integer(KeyEvent.VK_S),
+                                    KeyEvent.VK_S,
                                     null) {
             public void actionPerformed(ActionEvent e) {
                 if (worker != null) {
@@ -1266,7 +1266,7 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
         openInExcel = new UserAction(I18n.getString("OpenInExcel"),
                                      Util.EXCEL_ICON,
                                      "Open in Excel",
-                                     new Integer(KeyEvent.VK_O),
+                                     KeyEvent.VK_O,
                                      null) {
             
             public void actionPerformed(ActionEvent e) {
@@ -1284,7 +1284,7 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
         executeAction = new UserAction(I18n.getString("Execute"),
                                        Util.TABLE_SQL_RUN_ICON,
                                        "Execute the full or highlighted text as a query",
-                                       new Integer(KeyEvent.VK_E),
+                                        KeyEvent.VK_E,
                                        KeyStroke.getKeyStroke(KeyEvent.VK_E,menuShortcutKeyMask)) {
             
             public void actionPerformed(ActionEvent e) {
@@ -1296,7 +1296,7 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
         executeCurrentLineAction = new UserAction(I18n.getString("ExecuteCurrentLine"),
                                                   Util.RUN_ICON,
                                                   "Execute the current line as a query",
-                                                  new Integer(KeyEvent.VK_ENTER),
+                                                  KeyEvent.VK_ENTER,
                                                   KeyStroke.getKeyStroke(KeyEvent.VK_ENTER,menuShortcutKeyMask)) {
             
             public void actionPerformed(ActionEvent e) {
@@ -1308,7 +1308,7 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
         refreshAction = new UserAction(I18n.getString("Refresh"),
                                        Util.REFRESH_ICON,
                                        "Refresh the result set",
-                                       new Integer(KeyEvent.VK_R),
+                                       KeyEvent.VK_R,
                                        KeyStroke.getKeyStroke(KeyEvent.VK_Y,menuShortcutKeyMask | Event.SHIFT_MASK)) {
             
             public void actionPerformed(ActionEvent e) {
@@ -1319,7 +1319,7 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
         aboutAction = new UserAction(I18n.getString("About"),
                                      Util.ABOUT_ICON,
                                      "About Studio for kdb+",
-                                     new Integer(KeyEvent.VK_E),
+                                     KeyEvent.VK_E,
                                      null) {
             
             public void actionPerformed(ActionEvent e) {
@@ -1330,7 +1330,7 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
         exitAction = new UserAction(I18n.getString("Exit"),
                                     Util.BLANK_ICON,
                                     "Close this window",
-                                    new Integer(KeyEvent.VK_X),
+                                    KeyEvent.VK_X,
                                     null) {
             
             public void actionPerformed(ActionEvent e) {
@@ -1342,7 +1342,7 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
         settingsAction = new UserAction("Settings",
                 Util.BLANK_ICON,
                 "Settings",
-                new Integer(KeyEvent.VK_S),
+                KeyEvent.VK_S,
                 null) {
 
             public void actionPerformed(ActionEvent e) {
@@ -1353,7 +1353,7 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
         codeKxComAction = new UserAction("code.kx.com",
                                          Util.TEXT_ICON,
                                          "Open code.kx.com",
-                                         new Integer(KeyEvent.VK_C),
+                                         KeyEvent.VK_C,
                                          null) {
             
             public void actionPerformed(ActionEvent e) {

@@ -97,7 +97,7 @@ public class SettingsDialog extends EscapeDialog {
         comboBoxLookAndFeel.setSelectedItem(lf);
         JLabel lblResultTabsCount = new JLabel("Result tabs count");
         NumberFormatter formatter = new NumberFormatter();
-        formatter.setMinimum(new Integer(1));
+        formatter.setMinimum(1);
         formatter.setAllowsInvalid(false);
         txtTabsCount = new JFormattedTextField(formatter);
         txtTabsCount.setValue(Config.getInstance().getResultTabsCount());
