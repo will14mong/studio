@@ -326,8 +326,11 @@ public class Config {
         String backgroundColor = p.getProperty("server." + key + ".backgroundColor", "FFFFFF");
         String authenticationMechanism = p.getProperty("server." + key + ".authenticationMechanism", DefaultAuthenticationMechanism.NAME);
         boolean useTLS = Boolean.parseBoolean(p.getProperty("server." + key + ".useTLS", "false"));
+        String discoveryQuery = p.getProperty("server." + key + ".discoveryQuery", "");
         Color c = new Color(Integer.parseInt(backgroundColor, 16));
-        return new Server("", host, port, username, password, c, authenticationMechanism, useTLS);
+        Server server = new Server("", host, port, username, password, c, authenticationMechanism, useTLS);
+        server.setDiscoveryQuery(discoveryQuery);
+        return server;
     }
 
     private Server initServerFromProperties(int number) {
@@ -405,6 +408,7 @@ public class Config {
         p.setProperty("server." + number + ".backgroundColor", "" + Integer.toHexString(server.getBackgroundColor().getRGB()).substring(2));
         p.setProperty("server." + number + ".authenticationMechanism", server.getAuthenticationMechanism());
         p.setProperty("server." + number + ".useTLS", "" + server.getUseTLS());
+        p.setProperty("server." + number + ".discoveryQuery", server.getDiscoveryQuery());
     }
 
     private int saveServerTree(String keyPrefix, ServerTreeNode node, int number) {
@@ -494,24 +498,6 @@ public class Config {
             throw e;
         }
 
-    }
-
-    public DiscoveryConfig getDiscoveryConfig() {
-        String host = p.getProperty("discovery.host", "");
-        int port = Integer.parseInt(p.getProperty("discovery.port", "0"));
-        String query = p.getProperty("discovery.query", "");
-        String username = p.getProperty("discovery.username", "");
-        String password = p.getProperty("discovery.password", "");
-        return new DiscoveryConfig(host, port, query, username, password);
-    }
-
-    public void setDiscoveryConfig(DiscoveryConfig config) {
-        p.setProperty("discovery.host", config.getHost());
-        p.setProperty("discovery.port", "" + config.getPort());
-        p.setProperty("discovery.query", config.getQuery());
-        p.setProperty("discovery.username", config.getUsername());
-        p.setProperty("discovery.password", config.getPassword());
-        save();
     }
 
     public void setServerTree(ServerTreeNode serverTree) {

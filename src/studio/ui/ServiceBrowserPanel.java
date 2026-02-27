@@ -6,7 +6,6 @@ import studio.utils.SwingWorker;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.*;
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -15,9 +14,8 @@ import java.util.Map;
 /**
  * Left-pane service browser.
  *
- * Shows services discovered from a kdb+ discovery server.
- * Discovery response format: name!(host;port) — a kdb+ dict keyed by service name
- * where each value is a 2-element list (hostSymbol; portInteger).
+ * Shows the parent server as the first item, then any services discovered from
+ * that server's discovery query (if non-empty).
  *
  * Connection status:
  *   GREY  = never connected / not tried
@@ -33,11 +31,13 @@ public class ServiceBrowserPanel extends JPanel {
 
     // ── Data ──────────────────────────────────────────────────────────────────
     private final List<ServiceEntry> services = new ArrayList<>();
+    private Server currentServer;
 
     // ── UI ────────────────────────────────────────────────────────────────────
     private final DefaultListModel<ServiceEntry> listModel = new DefaultListModel<>();
     private final JList<ServiceEntry> serviceList = new JList<>(listModel);
     private final JLabel statusLabel = new JLabel(" ");
+    private final JButton refreshBtn = new JButton("Refresh");
 
     // ── Callback ──────────────────────────────────────────────────────────────
     public interface ServiceSelectionListener {
@@ -58,28 +58,20 @@ public class ServiceBrowserPanel extends JPanel {
         this.selectionListener = l;
     }
 
-    // ──────────────────────────── UI construction ────────────────────────────
+    // ──────────────────────── UI construction ────────────────────────────────
 
     private void buildUI() {
         // ── Top toolbar ──────────────────────────────────────────────────────
-        JButton refreshBtn   = new JButton("Refresh");
-        JButton configureBtn = new JButton("Configure...");
-
         refreshBtn.setToolTipText("Re-run discovery query to refresh service list");
-        configureBtn.setToolTipText("Configure discovery server host / port / query");
-
-        refreshBtn.addActionListener(e -> refresh());
-        configureBtn.addActionListener(e -> {
-            Frame parent = (Frame) SwingUtilities.getWindowAncestor(this);
-            DiscoveryConfigDialog dlg = new DiscoveryConfigDialog(parent);
-            dlg.setVisible(true);
+        refreshBtn.setEnabled(false);
+        refreshBtn.addActionListener(e -> {
+            if (currentServer != null) loadForServer(currentServer);
         });
 
         JPanel toolbar = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 4));
         toolbar.add(new JLabel("Services"));
         toolbar.add(Box.createHorizontalStrut(4));
         toolbar.add(refreshBtn);
-        toolbar.add(configureBtn);
 
         // ── Service list ─────────────────────────────────────────────────────
         serviceList.setCellRenderer(new ServiceCellRenderer());
@@ -122,39 +114,50 @@ public class ServiceBrowserPanel extends JPanel {
         serviceList.repaint();
     }
 
-    // ─────────────────────────────── Refresh ─────────────────────────────────
+    // ─────────────────────────── Load for server ─────────────────────────────
 
-    public void refresh() {
-        DiscoveryConfig cfg = Config.getInstance().getDiscoveryConfig();
-        if (!cfg.isConfigured()) {
-            statusLabel.setText("Discovery not configured. Click Configure...");
+    /**
+     * Populates the service list for the given server.
+     *
+     * The first item is always the server itself (labelled with server.getName()).
+     * If the server has a non-empty discoveryQuery, runs it on a background thread
+     * and appends the results as additional items.
+     */
+    public void loadForServer(Server server) {
+        if (server == null) return;
+        currentServer = server;
+        refreshBtn.setEnabled(true);
+
+        // Clear existing list
+        listModel.clear();
+        services.clear();
+        statusLabel.setText("Loading...");
+
+        // Always add the parent server as the first entry
+        ServiceEntry parentEntry = new ServiceEntry(
+                server.getName(), server.getHost(), server.getPort(), server);
+        services.add(parentEntry);
+        listModel.addElement(parentEntry);
+
+        String query = server.getDiscoveryQuery();
+        if (query == null || query.trim().isEmpty()) {
+            statusLabel.setText("1 service");
             return;
         }
 
-        statusLabel.setText("Refreshing...");
+        // Run discovery query on background thread
+        statusLabel.setText("Discovering...");
 
-        // Run on background thread — connection pool is synchronized
-        SwingWorker refreshWorker = new SwingWorker() {
+        SwingWorker discoveryWorker = new SwingWorker() {
             private List<ServiceEntry> found = new ArrayList<>();
             private String errorMsg = null;
 
             public Object construct() {
-                Server discoveryServer = new Server(
-                        "discovery",
-                        cfg.getHost(),
-                        cfg.getPort(),
-                        cfg.getUsername(),
-                        cfg.getPassword(),
-                        Color.white,
-                        Config.getInstance().getDefaultAuthMechanism(),
-                        false
-                );
-
                 kx.c conn = null;
                 try {
-                    conn = ConnectionPool.getInstance().leaseConnection(discoveryServer);
+                    conn = ConnectionPool.getInstance().leaseConnection(server);
                     ConnectionPool.getInstance().checkConnected(conn);
-                    conn.k(new K.KCharacterVector(cfg.getQuery()));
+                    conn.k(new K.KCharacterVector(query.trim()));
                     K.KBase response = conn.getResponse();
                     found = parseDiscoveryResponse(response);
                 } catch (Throwable e) {
@@ -163,27 +166,25 @@ public class ServiceBrowserPanel extends JPanel {
                     e.printStackTrace(System.err);
                 } finally {
                     if (conn != null)
-                        ConnectionPool.getInstance().freeConnection(discoveryServer, conn);
+                        ConnectionPool.getInstance().freeConnection(server, conn);
                 }
                 return null;
             }
 
             public void finished() {
-                listModel.clear();
-                services.clear();
                 if (errorMsg != null) {
-                    statusLabel.setText("Error: " + errorMsg);
+                    statusLabel.setText("Discovery error: " + errorMsg);
                 } else {
                     for (ServiceEntry e : found) {
                         services.add(e);
                         listModel.addElement(e);
                     }
-                    statusLabel.setText(found.size() + " service(s) found");
+                    statusLabel.setText((1 + found.size()) + " service(s)");
                 }
             }
         };
 
-        refreshWorker.start();
+        discoveryWorker.start();
     }
 
     // ─────────────────────────── Response parsing ─────────────────────────────

@@ -9,8 +9,6 @@ import java.util.*;
 import java.util.List;
 import java.util.stream.Stream;
 import javax.swing.*;
-import javax.swing.event.ChangeEvent;
-import javax.swing.event.ChangeListener;
 import static javax.swing.JSplitPane.VERTICAL_SPLIT;
 import static studio.ui.EscapeDialog.DialogResult.ACCEPTED;
 import static studio.ui.EscapeDialog.DialogResult.CANCELLED;
@@ -70,7 +68,7 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
 
     // ── Discovery / service browser ──────────────────────────────────────────
     private ServiceBrowserPanel serviceBrowserPanel;
-    private JTabbedPane editorTabs;
+    private EditorTabPanel editorPanel;
     /** In-session credential cache: service key (host:port) → {username, password} */
     private final Map<String, String[]> sessionCredentials = new HashMap<>();
     private UserAction arrangeAllAction;
@@ -1008,6 +1006,12 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
 
         this.server = server;
 
+        // Bind single editor panel to the new server
+        if (editorPanel != null) {
+            editorPanel.bindServer(server);
+            syncFromTab(editorPanel);
+        }
+
         if (textArea != null) {
             Document doc = textArea.getDocument();
 
@@ -1021,6 +1025,11 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
 
         refreshFrameTitle();
         windowListMonitor.fireMyEvent(new WindowListChangedEvent(this));
+
+        // Populate service browser for the new server
+        if (serviceBrowserPanel != null) {
+            serviceBrowserPanel.loadForServer(server);
+        }
     }
 
     private void initActions() {
@@ -1266,11 +1275,10 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
                                     KeyEvent.VK_S,
                                     null) {
             public void actionPerformed(ActionEvent e) {
-                EditorTabPanel tab = getActiveTab();
-                if (tab != null && tab.isExecuting()) {
-                    tab.stopExecution();
+                if (editorPanel != null && editorPanel.isExecuting()) {
+                    editorPanel.stopExecution();
                     stopAction.setEnabled(false);
-                    tab.getTextArea().setCursor(new Cursor(Cursor.DEFAULT_CURSOR));
+                    editorPanel.getTextArea().setCursor(new Cursor(Cursor.DEFAULT_CURSOR));
                 }
             }
         };
@@ -1595,27 +1603,6 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
 
         menubar.add(menu);
 
-        // ── Discovery menu ───────────────────────────────────────────────────
-        JMenu discoveryMenu = new JMenu("Discovery");
-        discoveryMenu.setMnemonic(KeyEvent.VK_D);
-
-        JMenuItem configureDiscoveryItem = new JMenuItem("Configure Discovery...");
-        configureDiscoveryItem.setMnemonic(KeyEvent.VK_C);
-        configureDiscoveryItem.addActionListener(e -> {
-            DiscoveryConfigDialog dlg = new DiscoveryConfigDialog(frame);
-            dlg.setVisible(true);
-        });
-
-        JMenuItem refreshServicesItem = new JMenuItem("Refresh Services");
-        refreshServicesItem.setMnemonic(KeyEvent.VK_R);
-        refreshServicesItem.addActionListener(e -> {
-            if (serviceBrowserPanel != null) serviceBrowserPanel.refresh();
-        });
-
-        discoveryMenu.add(configureDiscoveryItem);
-        discoveryMenu.add(refreshServicesItem);
-        menubar.add(discoveryMenu);
-
         menu = new JMenu(I18n.getString("Query"));
         menu.setMnemonic(KeyEvent.VK_Q);
         menu.add(new JMenuItem(executeCurrentLineAction));
@@ -1777,8 +1764,7 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
             toolbar.removeAll();
             toolbarAddServerSelection();
             Server activeServer = activeServer();
-            EditorTabPanel activeTab = getActiveTab();
-            boolean executing = (activeTab != null && activeTab.isExecuting());
+            boolean executing = (editorPanel != null && editorPanel.isExecuting());
             if (activeServer == null) {
                 addServerAction.setEnabled(true);
                 editServerAction.setEnabled(false);
@@ -1892,16 +1878,14 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
 
     private int dividerLastPosition; // updated from property change listener
     private void minMaxDivider() {
-        EditorTabPanel tab = getActiveTab();
-        if (tab != null) tab.minMaxDivider();
+        if (editorPanel != null) editorPanel.minMaxDivider();
     }
 
     private void toggleDividerOrientation() {
-        EditorTabPanel tab = getActiveTab();
-        if (tab != null) tab.toggleOrientation();
+        if (editorPanel != null) editorPanel.toggleOrientation();
     }
 
-    // ─────────────────────────── Editor-tab helpers ───────────────────────────
+    // ─────────────────────────── Editor-panel helpers ────────────────────────
 
     /**
      * Syncs the legacy StudioPanel fields (textArea, tabbedPane, splitpane, server, table)
@@ -1925,69 +1909,45 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
         redoAction      = tab.getRedoAction();
     }
 
-    /** Returns the currently visible EditorTabPanel (never null after construction). */
-    private EditorTabPanel getActiveTab() {
-        if (editorTabs == null) return null;
-        Component c = editorTabs.getSelectedComponent();
-        return (c instanceof EditorTabPanel) ? (EditorTabPanel) c : null;
-    }
-
-    /** Returns the server of the active tab, or the legacy server field as fallback. */
+    /** Returns the server of the editor panel, or the legacy server field as fallback. */
     private Server activeServer() {
-        EditorTabPanel tab = getActiveTab();
-        return (tab != null) ? tab.getServer() : server;
+        return (editorPanel != null) ? editorPanel.getServer() : server;
     }
 
     /**
-     * Called by ServiceBrowserPanel when the user single-clicks a discovered service.
-     * Prompts for credentials on first connect (in-session cache).
-     * Binds the service to the current (or a new) editor tab.
+     * Called by ServiceBrowserPanel when the user single-clicks a service entry.
+     * For the parent server (entry has a stored Server ref), connects directly.
+     * For discovery results (no stored Server), prompts for credentials on first connect.
+     * Binds the resolved server to the single editor panel — no new tabs are created.
      */
     public void onServiceSelected(ServiceEntry entry) {
-        // ── 1. Resolve credentials ─────────────────────────────────────────
-        String[] creds = sessionCredentials.get(entry.getKey());
-        if (creds == null) {
-            creds = CredentialDialog.prompt(frame, entry.getName() + " @ " + entry.getKey());
-            if (creds == null) return; // user cancelled
-            sessionCredentials.put(entry.getKey(), creds);
-        }
+        studio.kdb.Server s;
 
-        studio.kdb.Server s = entry.toServer(creds[0], creds[1]);
-
-        // ── 2. Find or create a tab ────────────────────────────────────────
-        // Re-use an existing unbound tab; otherwise open a new one.
-        EditorTabPanel targetTab = null;
-        for (int i = 0; i < editorTabs.getTabCount(); i++) {
-            Component c = editorTabs.getComponentAt(i);
-            if (c instanceof EditorTabPanel) {
-                EditorTabPanel t = (EditorTabPanel) c;
-                if (t.getServer() == null) {
-                    targetTab = t;
-                    editorTabs.setSelectedIndex(i);
-                    break;
-                }
+        if (entry.getServer() != null) {
+            // Parent server entry or already-resolved discovery result — reuse directly
+            s = entry.getServer();
+        } else {
+            // Discovery result: resolve credentials (cache in session)
+            String[] creds = sessionCredentials.get(entry.getKey());
+            if (creds == null) {
+                creds = CredentialDialog.prompt(frame, entry.getName() + " @ " + entry.getKey());
+                if (creds == null) return; // user cancelled
+                sessionCredentials.put(entry.getKey(), creds);
             }
-        }
-        if (targetTab == null) {
-            targetTab = createEditorTab();
-            int idx = editorTabs.getTabCount();
-            editorTabs.addTab("[unbound]", targetTab);
-            editorTabs.setSelectedIndex(idx);
+            s = entry.toServer(creds[0], creds[1]);
+            entry.setServer(s); // cache for connection reuse on subsequent clicks
         }
 
-        targetTab.bindServer(s);
-        int idx = editorTabs.getSelectedIndex();
-        editorTabs.setTitleAt(idx, entry.getName() + " @ " + entry.getKey());
-
-        // Mark service as being tried (will be updated to OK/ERROR after next query)
-        server = s; // keep legacy field in sync for toolbar/menu
+        editorPanel.bindServer(s);
+        syncFromTab(editorPanel);
+        server = s;
         rebuildToolbar();
         rebuildMenuBar();
-        targetTab.getTextArea().requestFocus();
+        editorPanel.getTextArea().requestFocus();
     }
 
-    /** Creates a new EditorTabPanel wired up to the StudioPanel execution callback. */
-    private EditorTabPanel createEditorTab() {
+    /** Creates the single EditorPanel wired up to the StudioPanel execution callback. */
+    private EditorTabPanel createEditorPanel() {
         return new EditorTabPanel(new EditorTabPanel.ExecutionCallback() {
             public JFrame getFrame() { return frame; }
 
@@ -2012,17 +1972,12 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
                 openInExcel.setEnabled(resultTable != null);
 
                 // Update status indicator in the service browser
-                EditorTabPanel tab = getActiveTab();
-                if (tab != null && tab.getServer() != null) {
-                    // Find matching ServiceEntry by host:port
-                    // (serviceBrowserPanel tracks its own entries)
-                    if (serviceBrowserPanel != null) {
-                        String key = tab.getServer().getHost() + ":" + tab.getServer().getPort();
-                        serviceBrowserPanel.markOk(new ServiceEntry(
-                                tab.getServer().getName(),
-                                tab.getServer().getHost(),
-                                tab.getServer().getPort()));
-                    }
+                if (editorPanel != null && editorPanel.getServer() != null
+                        && serviceBrowserPanel != null) {
+                    serviceBrowserPanel.markOk(new ServiceEntry(
+                            editorPanel.getServer().getName(),
+                            editorPanel.getServer().getHost(),
+                            editorPanel.getServer().getPort()));
                 }
             }
 
@@ -2031,12 +1986,12 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
                 executeAction.setEnabled(true);
                 executeCurrentLineAction.setEnabled(true);
 
-                EditorTabPanel tab = getActiveTab();
-                if (tab != null && tab.getServer() != null && serviceBrowserPanel != null) {
+                if (editorPanel != null && editorPanel.getServer() != null
+                        && serviceBrowserPanel != null) {
                     serviceBrowserPanel.markError(new ServiceEntry(
-                            tab.getServer().getName(),
-                            tab.getServer().getHost(),
-                            tab.getServer().getPort()));
+                            editorPanel.getServer().getName(),
+                            editorPanel.getServer().getHost(),
+                            editorPanel.getServer().getPort()));
                 }
             }
         });
@@ -2071,25 +2026,12 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
         menubar = createMenuBar();
         toolbar = createToolbar();
 
-        // ── Editor tab pane (right side) ─────────────────────────────────────
-        editorTabs = new JTabbedPane();
-        EditorTabPanel firstTab = createEditorTab();
-        firstTab.bindServer(server);
-        editorTabs.addTab(server != null ? server.getName() : "[unbound]", firstTab);
+        // ── Single editor panel (right side) ──────────────────────────────
+        editorPanel = createEditorPanel();
+        editorPanel.bindServer(server);
 
-        // Keep textArea / splitpane / tabbedPane in sync with active tab
-        syncFromTab(firstTab);
-
-        editorTabs.addChangeListener(new ChangeListener() {
-            public void stateChanged(ChangeEvent e) {
-                EditorTabPanel tab = getActiveTab();
-                if (tab != null) {
-                    syncFromTab(tab);
-                    rebuildToolbar();
-                    rebuildMenuBar();
-                }
-            }
-        });
+        // Sync legacy fields (textArea, splitpane, tabbedPane, actions) from editor panel
+        syncFromTab(editorPanel);
 
         // ── Service browser (left pane) ────────────────────────────────────
         serviceBrowserPanel = new ServiceBrowserPanel();
@@ -2097,7 +2039,7 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
 
         // ── Outer horizontal split ─────────────────────────────────────────
         JSplitPane outerSplit = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT,
-                serviceBrowserPanel, editorTabs);
+                serviceBrowserPanel, editorPanel);
         outerSplit.setDividerLocation(220);
         outerSplit.setOneTouchExpandable(true);
         outerSplit.setContinuousLayout(true);
@@ -2129,10 +2071,13 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
         frame.setIconImage(Util.LOGO_ICON.getImage());
         frame.setVisible(true);
 
-        // Set divider on first tab after frame is visible
+        // Set divider after frame is visible; also load service browser for initial server
         SwingUtilities.invokeLater(() -> {
-            firstTab.getSplitPane().setDividerLocation(0.5);
-            firstTab.getTextArea().requestFocus();
+            editorPanel.getSplitPane().setDividerLocation(0.5);
+            editorPanel.getTextArea().requestFocus();
+            if (server != null) {
+                serviceBrowserPanel.loadForServer(server);
+            }
         });
 
         // Legacy splitpane property change listener (for minMaxDivider label)
@@ -2206,23 +2151,19 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
     }
 
     public void refreshQuery() {
-        EditorTabPanel tab = getActiveTab();
-        if (tab != null) tab.refreshQuery();
+        if (editorPanel != null) editorPanel.refreshQuery();
     }
 
     public void executeQueryCurrentLine() {
-        EditorTabPanel tab = getActiveTab();
-        if (tab != null) tab.executeQueryCurrentLine();
+        if (editorPanel != null) editorPanel.executeQueryCurrentLine();
     }
 
     public void executeQuery() {
-        EditorTabPanel tab = getActiveTab();
-        if (tab != null) tab.executeQuery();
+        if (editorPanel != null) editorPanel.executeQuery();
     }
 
     private void executeQuery(String text) {
-        EditorTabPanel tab = getActiveTab();
-        if (tab != null) tab.executeQuery(text);
+        if (editorPanel != null) editorPanel.executeQuery(text);
     }
 
     private String getEditorText(JEditorPane editor) {
