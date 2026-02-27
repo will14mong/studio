@@ -32,6 +32,8 @@ public class ServiceBrowserPanel extends JPanel {
     // ── Data ──────────────────────────────────────────────────────────────────
     private final List<ServiceEntry> services = new ArrayList<>();
     private Server currentServer;
+    /** Incremented on every loadForServer call; workers compare against it to detect staleness. */
+    private int loadGeneration = 0;
 
     // ── UI ────────────────────────────────────────────────────────────────────
     private final DefaultListModel<ServiceEntry> listModel = new DefaultListModel<>();
@@ -126,6 +128,7 @@ public class ServiceBrowserPanel extends JPanel {
     public void loadForServer(Server server) {
         if (server == null) return;
         currentServer = server;
+        final int myGeneration = ++loadGeneration;
         refreshBtn.setEnabled(true);
 
         // Clear existing list
@@ -172,7 +175,7 @@ public class ServiceBrowserPanel extends JPanel {
             }
 
             public void finished() {
-                if (server != currentServer) return; // user switched away; discard stale results
+                if (myGeneration != loadGeneration) return; // a newer load has started; discard stale results
                 if (errorMsg != null) {
                     statusLabel.setText("Discovery error: " + errorMsg);
                 } else {
