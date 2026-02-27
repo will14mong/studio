@@ -1711,7 +1711,11 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
         Server s = Config.getInstance().getServer(sel.toString());
         if (s == null) return;
         discoveryServer = s;
+        setServer(s);
         serviceBrowserPanel.loadForServer(s);
+        rebuildToolbar();
+        toolbar.validate();
+        toolbar.repaint();
     }
 
     private void refreshConnection() {
@@ -1726,17 +1730,11 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
     }
 
     private void toolbarAddServerSelection() {
-        // Only list servers that have a discovery query configured
-        List<String> names = new ArrayList<>();
-        for (String n : Config.getInstance().getServerNames()) {
-            Server s = Config.getInstance().getServer(n);
-            if (s != null && s.getDiscoveryQuery() != null && !s.getDiscoveryQuery().trim().isEmpty()) {
-                names.add(n);
-            }
-        }
+        // Show all configured servers; do NOT inject the active connection if it came from a discovery result
+        List<String> names = new ArrayList<>(Config.getInstance().getServerNames());
         String name = discoveryServer == null ? "" : discoveryServer.getFullName();
         comboServer = new JComboBox<>(names.toArray(new String[0]));
-        comboServer.setToolTipText("Select the discovery server");
+        comboServer.setToolTipText("Select the server context");
         if (!name.isEmpty()) comboServer.setSelectedItem(name);
         comboServer.addActionListener(e->selectServerName());
         // Cut the width if it is too wide.
@@ -2023,9 +2021,7 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
         // ── Bootstrap textArea for legacy action extraction ───────────────────
         initDocument();
         setServer(server);
-        if (server != null && server.getDiscoveryQuery() != null && !server.getDiscoveryQuery().trim().isEmpty()) {
-            discoveryServer = server;
-        }
+        discoveryServer = server;
 
         menubar = createMenuBar();
         toolbar = createToolbar();
