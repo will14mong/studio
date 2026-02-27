@@ -496,6 +496,24 @@ public class Config {
 
     }
 
+    public DiscoveryConfig getDiscoveryConfig() {
+        String host = p.getProperty("discovery.host", "");
+        int port = Integer.parseInt(p.getProperty("discovery.port", "0"));
+        String query = p.getProperty("discovery.query", "");
+        String username = p.getProperty("discovery.username", "");
+        String password = p.getProperty("discovery.password", "");
+        return new DiscoveryConfig(host, port, query, username, password);
+    }
+
+    public void setDiscoveryConfig(DiscoveryConfig config) {
+        p.setProperty("discovery.host", config.getHost());
+        p.setProperty("discovery.port", "" + config.getPort());
+        p.setProperty("discovery.query", config.getQuery());
+        p.setProperty("discovery.username", config.getUsername());
+        p.setProperty("discovery.password", config.getPassword());
+        save();
+    }
+
     public void setServerTree(ServerTreeNode serverTree) {
         Properties backup = new Properties();
         backup.putAll(p);
