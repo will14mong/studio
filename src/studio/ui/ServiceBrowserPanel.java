@@ -172,6 +172,7 @@ public class ServiceBrowserPanel extends JPanel {
             }
 
             public void finished() {
+                if (server != currentServer) return; // user switched away; discard stale results
                 if (errorMsg != null) {
                     statusLabel.setText("Discovery error: " + errorMsg);
                 } else {
