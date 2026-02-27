@@ -200,15 +200,54 @@ public class ServiceBrowserPanel extends JPanel {
      * Values = K.KList where element[i] is a 2-element K.KList: {K.KSymbol host, K.KInteger port}
      */
     private List<ServiceEntry> parseDiscoveryResponse(K.KBase response) {
+        if (response instanceof K.Flip)
+            return parseDiscoveryTable((K.Flip) response);
+        if (response instanceof K.Dict)
+            return parseDiscoveryDict((K.Dict) response);
+        System.err.println("Discovery: unexpected response type: "
+                + response.getClass().getSimpleName());
+        return new ArrayList<>();
+    }
+
+    /** Parse a table with columns: name (symbol), host (symbol), port (int). */
+    private List<ServiceEntry> parseDiscoveryTable(K.Flip flip) {
         List<ServiceEntry> result = new ArrayList<>();
 
-        if (!(response instanceof K.Dict)) {
-            System.err.println("Discovery: unexpected response type: "
-                    + response.getClass().getSimpleName());
+        // Locate required columns by name
+        int nameCol = -1, hostCol = -1, portCol = -1;
+        int numCols = flip.x.getLength();
+        for (int c = 0; c < numCols; c++) {
+            String col = ((K.KSymbol) flip.x.at(c)).s;
+            if ("name".equals(col)) nameCol = c;
+            else if ("host".equals(col)) hostCol = c;
+            else if ("port".equals(col)) portCol = c;
+        }
+        if (nameCol < 0 || hostCol < 0 || portCol < 0) {
+            System.err.println("Discovery: table missing required column(s) (need name, host, port)");
             return result;
         }
 
-        K.Dict dict = (K.Dict) response;
+        K.KBaseVector nameVec = (K.KBaseVector) flip.y.at(nameCol);
+        K.KBaseVector hostVec = (K.KBaseVector) flip.y.at(hostCol);
+        K.KBaseVector portVec = (K.KBaseVector) flip.y.at(portCol);
+
+        int rows = nameVec.getLength();
+        for (int i = 0; i < rows; i++) {
+            try {
+                String name = ((K.KSymbol)  nameVec.at(i)).s;
+                String host = ((K.KSymbol)  hostVec.at(i)).s;
+                int    port = ((K.KInteger) portVec.at(i)).i;
+                result.add(new ServiceEntry(name, host, port));
+            } catch (Exception e) {
+                System.err.println("Discovery: could not parse table row " + i + ": " + e);
+            }
+        }
+        return result;
+    }
+
+    /** Parse a dict: `svc1`svc2!((`host1;port1i);(`host2;port2i)) */
+    private List<ServiceEntry> parseDiscoveryDict(K.Dict dict) {
+        List<ServiceEntry> result = new ArrayList<>();
 
         if (!(dict.x instanceof K.KSymbolVector)) {
             System.err.println("Discovery: dict keys are not KSymbolVector");
@@ -225,16 +264,15 @@ public class ServiceBrowserPanel extends JPanel {
         int count = names.getLength();
         for (int i = 0; i < count; i++) {
             try {
-                String name = ((K.KSymbol) names.at(i)).s;
+                String name = ((K.KSymbol)  names.at(i)).s;
                 K.KList pair = (K.KList) values.at(i);
-                String host = ((K.KSymbol) pair.at(0)).s;
+                String host = ((K.KSymbol)  pair.at(0)).s;
                 int    port = ((K.KInteger) pair.at(1)).i;
                 result.add(new ServiceEntry(name, host, port));
             } catch (Exception e) {
-                System.err.println("Discovery: could not parse entry " + i + ": " + e);
+                System.err.println("Discovery: could not parse dict entry " + i + ": " + e);
             }
         }
-
         return result;
     }
 
