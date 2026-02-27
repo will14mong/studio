@@ -69,6 +69,8 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
     // ── Discovery / service browser ──────────────────────────────────────────
     private ServiceBrowserPanel serviceBrowserPanel;
     private EditorTabPanel editorPanel;
+    /** The server currently selected in the discovery dropdown (may differ from active connection). */
+    private Server discoveryServer;
     /** In-session credential cache: service key (host:port) → {username, password} */
     private final Map<String, String[]> sessionCredentials = new HashMap<>();
     private UserAction arrangeAllAction;
@@ -1704,13 +1706,12 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
     }
 
     private void selectServerName() {
-        String selection = comboServer.getSelectedItem().toString();
-        if(! Config.getInstance().getServerNames().contains(selection)) return;
-
-        setServer(Config.getInstance().getServer(selection));
-        rebuildToolbar();
-        toolbar.validate();
-        toolbar.repaint();
+        Object sel = comboServer.getSelectedItem();
+        if (sel == null) return;
+        Server s = Config.getInstance().getServer(sel.toString());
+        if (s == null) return;
+        discoveryServer = s;
+        serviceBrowserPanel.loadForServer(s);
     }
 
     private void refreshConnection() {
@@ -1725,18 +1726,18 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
     }
 
     private void toolbarAddServerSelection() {
-        Collection<String> names = Config.getInstance().getServerNames();
-        Server activeServer = activeServer();
-        String name = activeServer == null ? "" : activeServer.getFullName();
-        if (!names.contains(name)) {
-            List<String> newNames = new ArrayList<>();
-            newNames.add(name);
-            newNames.addAll(names);
-            names = newNames;
+        // Only list servers that have a discovery query configured
+        List<String> names = new ArrayList<>();
+        for (String n : Config.getInstance().getServerNames()) {
+            Server s = Config.getInstance().getServer(n);
+            if (s != null && s.getDiscoveryQuery() != null && !s.getDiscoveryQuery().trim().isEmpty()) {
+                names.add(n);
+            }
         }
+        String name = discoveryServer == null ? "" : discoveryServer.getFullName();
         comboServer = new JComboBox<>(names.toArray(new String[0]));
-        comboServer.setToolTipText("Select the server context");
-        comboServer.setSelectedItem(name);
+        comboServer.setToolTipText("Select the discovery server");
+        if (!name.isEmpty()) comboServer.setSelectedItem(name);
         comboServer.addActionListener(e->selectServerName());
         // Cut the width if it is too wide.
         comboServer.setMinimumSize(new Dimension(0, 0));
@@ -2022,6 +2023,9 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
         // ── Bootstrap textArea for legacy action extraction ───────────────────
         initDocument();
         setServer(server);
+        if (server != null && server.getDiscoveryQuery() != null && !server.getDiscoveryQuery().trim().isEmpty()) {
+            discoveryServer = server;
+        }
 
         menubar = createMenuBar();
         toolbar = createToolbar();
@@ -2075,8 +2079,8 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
         SwingUtilities.invokeLater(() -> {
             editorPanel.getSplitPane().setDividerLocation(0.5);
             editorPanel.getTextArea().requestFocus();
-            if (server != null) {
-                serviceBrowserPanel.loadForServer(server);
+            if (discoveryServer != null) {
+                serviceBrowserPanel.loadForServer(discoveryServer);
             }
         });
 
