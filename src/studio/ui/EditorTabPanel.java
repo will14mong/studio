@@ -205,8 +205,8 @@ public class EditorTabPanel extends JPanel {
         if (textArea != null) {
             Document doc = textArea.getDocument();
             if (doc != null) doc.putProperty("server", server);
-            Utilities.getEditorUI(textArea).getComponent()
-                    .setBackground(server.getBackgroundColor());
+            Color bg = server != null ? server.getBackgroundColor() : Config.getInstance().getDefaultBackgroundColor();
+            Utilities.getEditorUI(textArea).getComponent().setBackground(bg);
         }
         if (server != null) new ReloadQKeywords(server);
     }

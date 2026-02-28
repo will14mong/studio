@@ -1019,7 +1019,8 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
 
             if (doc != null)
                 doc.putProperty("server",server);
-            Utilities.getEditorUI(textArea).getComponent().setBackground(server.getBackgroundColor());
+            Color bg = server != null ? server.getBackgroundColor() : Config.getInstance().getDefaultBackgroundColor();
+            Utilities.getEditorUI(textArea).getComponent().setBackground(bg);
         }
 
         new ReloadQKeywords(server);
