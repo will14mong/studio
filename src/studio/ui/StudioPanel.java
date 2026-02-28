@@ -1937,22 +1937,31 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
         bindToEditor(anonServer);
 
         new SwingWorker() {
-            kx.c conn = null;
+            boolean anonOk = false;
             boolean needsAuth = false;
 
             public Object construct() {
+                kx.c conn = null;
                 try {
                     conn = ConnectionPool.getInstance().leaseConnection(anonServer);
+                    // leaseConnection() only constructs kx.c; checkConnected() actually
+                    // opens the TCP socket and performs the kdb+ auth handshake.
+                    ConnectionPool.getInstance().checkConnected(conn);
+                    anonOk = true;
                 } catch (c.K4Exception e) {
-                    needsAuth = "access".equals(e.getMessage());
-                } catch (Exception ignored) {}
+                    // Any K4Exception from reconnect() means auth required.
+                    needsAuth = true;
+                } catch (Exception ignored) {
+                } finally {
+                    if (conn != null)
+                        ConnectionPool.getInstance().freeConnection(anonServer, conn);
+                }
                 return null;
             }
 
             public void finished() {
-                if (conn != null) {
+                if (anonOk) {
                     // Anonymous connection succeeded — no credentials required
-                    ConnectionPool.getInstance().freeConnection(anonServer, conn);
                     entry.setServer(anonServer);
                     sessionCredentials.put(entry.getKey(), new String[]{"", ""});
                     serviceBrowserPanel.markOk(entry);
@@ -1986,11 +1995,9 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
     }
 
     /**
-     * Probes a connection in the background by leasing it from the pool.
-     * For a brand-new service, leasing opens a real TCP connection + auth handshake,
-     * so a failure means the server is genuinely unreachable.  ReloadQKeywords (fired
-     * by bindToEditor) already performs an I/O round-trip for pooled connections, so
-     * no additional query is sent here.
+     * Probes a connection in the background by leasing it and calling checkConnected()
+     * to actually open the TCP socket and perform the auth handshake (leaseConnection
+     * alone only constructs the kx.c object; it never connects).
      */
     private void probeInBackground(ServiceEntry entry, Server s) {
         new SwingWorker() {
@@ -2000,7 +2007,8 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
                 kx.c conn = null;
                 try {
                     conn = ConnectionPool.getInstance().leaseConnection(s);
-                    success = (conn != null);
+                    ConnectionPool.getInstance().checkConnected(conn);
+                    success = true;
                 } catch (Throwable ignored) {
                 } finally {
                     if (conn != null)
