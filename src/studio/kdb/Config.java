@@ -360,7 +360,7 @@ public class Config {
     }
 
     private void initServers() {
-        if (p.getProperty("version").equals(OLD_VERSION)) {
+        if (OLD_VERSION.equals(p.getProperty("version"))) {
             convertFromOldVerion();
         }
         serverNames = new ArrayList<>();
