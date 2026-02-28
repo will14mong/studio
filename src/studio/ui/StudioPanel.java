@@ -1966,16 +1966,17 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
                     sessionCredentials.put(entry.getKey(), new String[]{"", ""});
                     serviceBrowserPanel.markOk(entry);
                 } else if (needsAuth) {
-                    // Server requires credentials — check session cache then prompt
+                    // Server requires credentials — check session cache, then prompt.
+                    // If cached credentials are also wrong, probeInBackground will evict
+                    // them and call promptCredentialsAndConnect to start the retry loop.
                     String[] creds = sessionCredentials.get(entry.getKey());
-                    if (creds == null) {
-                        creds = CredentialDialog.prompt(frame, entry.getName() + " @ " + entry.getKey());
-                        if (creds == null) return; // user cancelled
-                        sessionCredentials.put(entry.getKey(), creds);
+                    if (creds != null) {
+                        Server credServer = entry.toServer(creds[0], creds[1]);
+                        bindToEditor(credServer);
+                        probeInBackground(entry, credServer);
+                    } else {
+                        promptCredentialsAndConnect(entry, null);
                     }
-                    Server credServer = entry.toServer(creds[0], creds[1]);
-                    bindToEditor(credServer);
-                    probeInBackground(entry, credServer);
                 } else {
                     // Non-auth failure (e.g. connection refused)
                     serviceBrowserPanel.markError(entry);
@@ -1998,10 +1999,14 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
      * Probes a connection in the background by leasing it and calling checkConnected()
      * to actually open the TCP socket and perform the auth handshake (leaseConnection
      * alone only constructs the kx.c object; it never connects).
+     *
+     * On K4Exception (wrong credentials) the session cache is evicted and
+     * promptCredentialsAndConnect() is called so the user can retry.
      */
     private void probeInBackground(ServiceEntry entry, Server s) {
         new SwingWorker() {
-            boolean success = false;
+            boolean success   = false;
+            boolean authFailed = false;
 
             public Object construct() {
                 kx.c conn = null;
@@ -2009,6 +2014,8 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
                     conn = ConnectionPool.getInstance().leaseConnection(s);
                     ConnectionPool.getInstance().checkConnected(conn);
                     success = true;
+                } catch (c.K4Exception e) {
+                    authFailed = true;
                 } catch (Throwable ignored) {
                 } finally {
                     if (conn != null)
@@ -2020,12 +2027,34 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
             public void finished() {
                 if (success) {
                     entry.setServer(s);
+                    sessionCredentials.put(entry.getKey(), new String[]{s.getUsername(), s.getPassword()});
                     serviceBrowserPanel.markOk(entry);
+                } else if (authFailed) {
+                    // Evict any cached credentials that turned out to be wrong
+                    sessionCredentials.remove(entry.getKey());
+                    promptCredentialsAndConnect(entry, "Invalid username or password.");
                 } else {
                     serviceBrowserPanel.markError(entry);
                 }
             }
         }.start();
+    }
+
+    /**
+     * Shows the credential dialog (with an optional error message for retries),
+     * then probes the connection.  Calling probeInBackground on failure loops
+     * back here, giving an unlimited retry cycle until the user cancels.
+     */
+    private void promptCredentialsAndConnect(ServiceEntry entry, String errorMessage) {
+        String[] creds = CredentialDialog.prompt(frame, entry.getName() + " @ " + entry.getKey(), errorMessage);
+        if (creds == null) {
+            // User cancelled — leave the entry marked as error
+            serviceBrowserPanel.markError(entry);
+            return;
+        }
+        Server credServer = entry.toServer(creds[0], creds[1]);
+        bindToEditor(credServer);
+        probeInBackground(entry, credServer);
     }
 
     /** Creates the single EditorPanel wired up to the StudioPanel execution callback. */

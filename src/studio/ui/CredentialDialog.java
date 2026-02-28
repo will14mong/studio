@@ -14,14 +14,14 @@ public class CredentialDialog extends JDialog {
     private final JPasswordField passwordField = new JPasswordField(20);
     private boolean accepted = false;
 
-    private CredentialDialog(Frame parent, String serviceName) {
+    private CredentialDialog(Frame parent, String serviceName, String errorMessage) {
         super(parent, "Connect to " + serviceName, true);
-        buildUI(serviceName);
+        buildUI(serviceName, errorMessage);
         pack();
         Util.centerChildOnParent(this, parent);
     }
 
-    private void buildUI(String serviceName) {
+    private void buildUI(String serviceName, String errorMessage) {
         JPanel form = new JPanel(new GridBagLayout());
         GridBagConstraints lc = new GridBagConstraints();
         lc.anchor = GridBagConstraints.WEST;
@@ -31,17 +31,29 @@ public class CredentialDialog extends JDialog {
         fc.weightx = 1.0;
         fc.insets = new Insets(4, 4, 4, 8);
 
-        lc.gridy = 0; fc.gridy = 0;
+        int row = 0;
+
+        if (errorMessage != null) {
+            GridBagConstraints ec = new GridBagConstraints();
+            ec.gridx = 0; ec.gridy = row++; ec.gridwidth = 2;
+            ec.fill = GridBagConstraints.HORIZONTAL;
+            ec.insets = new Insets(6, 8, 2, 8);
+            JLabel errLabel = new JLabel(errorMessage);
+            errLabel.setForeground(Color.RED);
+            form.add(errLabel, ec);
+        }
+
+        lc.gridy = row; fc.gridy = row++;
         form.add(new JLabel("Service:"), lc);
         JLabel svcLabel = new JLabel(serviceName);
         svcLabel.setFont(svcLabel.getFont().deriveFont(Font.BOLD));
         form.add(svcLabel, fc);
 
-        lc.gridy = 1; fc.gridy = 1;
+        lc.gridy = row; fc.gridy = row++;
         form.add(new JLabel("Username:"), lc);
         form.add(usernameField, fc);
 
-        lc.gridy = 2; fc.gridy = 2;
+        lc.gridy = row; fc.gridy = row++;
         form.add(new JLabel("Password:"), lc);
         form.add(passwordField, fc);
 
@@ -73,14 +85,22 @@ public class CredentialDialog extends JDialog {
     /**
      * Show the credential dialog. Returns String[]{username, password} if the
      * user clicked Connect, or null if cancelled.
+     *
+     * @param errorMessage optional message shown in red above the form (e.g. after
+     *                     a failed attempt); pass null for the initial prompt.
      */
-    public static String[] prompt(Frame parent, String serviceName) {
-        CredentialDialog dlg = new CredentialDialog(parent, serviceName);
+    public static String[] prompt(Frame parent, String serviceName, String errorMessage) {
+        CredentialDialog dlg = new CredentialDialog(parent, serviceName, errorMessage);
         dlg.setVisible(true); // blocks until disposed
         if (!dlg.accepted) return null;
         return new String[]{
             dlg.usernameField.getText(),
             new String(dlg.passwordField.getPassword())
         };
+    }
+
+    /** Convenience overload for the initial prompt (no error message). */
+    public static String[] prompt(Frame parent, String serviceName) {
+        return prompt(parent, serviceName, null);
     }
 }
