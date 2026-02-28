@@ -1154,7 +1154,10 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
                                             KeyEvent.VK_E,
                                           null) {
             public void actionPerformed(ActionEvent e) {
-                Server s = new Server(server);
+                // Always edit the discovery server (the parent), not the currently
+                // active service — discovered services are defined by the query.
+                Server target = discoveryServer != null ? discoveryServer : server;
+                Server s = new Server(target);
 
                 EditServerForm f = new EditServerForm(frame,s);
                 f.alignAndShow();
@@ -1162,12 +1165,13 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
                     if (stopAction.isEnabled())
                         stopAction.actionPerformed(e);
 
-                    ConnectionPool.getInstance().purge(server);
-                    Config.getInstance().removeServer(server);
+                    ConnectionPool.getInstance().purge(target);
+                    Config.getInstance().removeServer(target);
 
                     s = f.getServer();
                     Config.getInstance().addServer(s);
-                    setServer(s);
+                    discoveryServer = s;
+                    serviceBrowserPanel.loadForServer(s);
                     rebuildToolbar();
                     rebuildMenuBar();
 
@@ -1915,34 +1919,97 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
 
     /**
      * Called by ServiceBrowserPanel when the user single-clicks a service entry.
-     * For the parent server (entry has a stored Server ref), connects directly.
-     * For discovery results (no stored Server), prompts for credentials on first connect.
-     * Binds the resolved server to the single editor panel — no new tabs are created.
+     * Binds the editor immediately, then probes the connection on a background thread.
+     * For new discovery entries the probe is attempted anonymously first; if the server
+     * requires authentication the credential dialog is shown only then.
      */
     public void onServiceSelected(ServiceEntry entry) {
-        studio.kdb.Server s;
-
         if (entry.getServer() != null) {
-            // Parent server entry or already-resolved discovery result — reuse directly
-            s = entry.getServer();
-        } else {
-            // Discovery result: resolve credentials (cache in session)
-            String[] creds = sessionCredentials.get(entry.getKey());
-            if (creds == null) {
-                creds = CredentialDialog.prompt(frame, entry.getName() + " @ " + entry.getKey());
-                if (creds == null) return; // user cancelled
-                sessionCredentials.put(entry.getKey(), creds);
-            }
-            s = entry.toServer(creds[0], creds[1]);
-            entry.setServer(s); // cache for connection reuse on subsequent clicks
+            // Already-resolved server (parent entry or previously connected service)
+            bindToEditor(entry.getServer());
+            probeInBackground(entry, entry.getServer());
+            return;
         }
 
+        // New discovery entry — try anonymous connection first so that servers that
+        // don't require a password connect without showing a dialog at all.
+        Server anonServer = entry.toServer("", "");
+        bindToEditor(anonServer);
+
+        new SwingWorker() {
+            kx.c conn = null;
+            boolean needsAuth = false;
+
+            public Object construct() {
+                try {
+                    conn = ConnectionPool.getInstance().leaseConnection(anonServer);
+                } catch (c.K4Exception e) {
+                    needsAuth = "access".equals(e.getMessage());
+                } catch (Exception ignored) {}
+                return null;
+            }
+
+            public void finished() {
+                if (conn != null) {
+                    // Anonymous connection succeeded — no credentials required
+                    ConnectionPool.getInstance().freeConnection(anonServer, conn);
+                    entry.setServer(anonServer);
+                    sessionCredentials.put(entry.getKey(), new String[]{"", ""});
+                    serviceBrowserPanel.markOk(entry);
+                } else if (needsAuth) {
+                    // Server requires credentials — check session cache then prompt
+                    String[] creds = sessionCredentials.get(entry.getKey());
+                    if (creds == null) {
+                        creds = CredentialDialog.prompt(frame, entry.getName() + " @ " + entry.getKey());
+                        if (creds == null) return; // user cancelled
+                        sessionCredentials.put(entry.getKey(), creds);
+                    }
+                    Server credServer = entry.toServer(creds[0], creds[1]);
+                    bindToEditor(credServer);
+                    probeInBackground(entry, credServer);
+                } else {
+                    // Non-auth failure (e.g. connection refused)
+                    serviceBrowserPanel.markError(entry);
+                }
+            }
+        }.start();
+    }
+
+    /** Binds a server to the editor panel and syncs all UI state. */
+    private void bindToEditor(Server s) {
+        server = s;
         editorPanel.bindServer(s);
         syncFromTab(editorPanel);
-        server = s;
         rebuildToolbar();
         rebuildMenuBar();
         editorPanel.getTextArea().requestFocus();
+    }
+
+    /**
+     * Leases (and immediately frees) a connection in the background to verify
+     * reachability, then marks the service indicator green or red.
+     */
+    private void probeInBackground(ServiceEntry entry, Server s) {
+        new SwingWorker() {
+            kx.c conn = null;
+
+            public Object construct() {
+                try {
+                    conn = ConnectionPool.getInstance().leaseConnection(s);
+                } catch (Exception ignored) {}
+                return null;
+            }
+
+            public void finished() {
+                if (conn != null) {
+                    ConnectionPool.getInstance().freeConnection(s, conn);
+                    entry.setServer(s);
+                    serviceBrowserPanel.markOk(entry);
+                } else {
+                    serviceBrowserPanel.markError(entry);
+                }
+            }
+        }.start();
     }
 
     /** Creates the single EditorPanel wired up to the StudioPanel execution callback. */
