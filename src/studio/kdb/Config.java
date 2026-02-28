@@ -24,8 +24,8 @@ public class Config {
 
     private Properties p = new Properties();
     private final Map<String, Server> servers = new HashMap<>();
-    private Collection<String> serverNames;
-    private ServerTreeNode serverTree;
+    private Collection<String> serverNames = new ArrayList<>();
+    private ServerTreeNode serverTree = new ServerTreeNode();
 
     private final static Config instance = new Config();
 
