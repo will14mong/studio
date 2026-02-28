@@ -57,6 +57,7 @@ public class EditorTabPanel extends JPanel {
         void onExecutionStarted();
         void onExecutionFinished(JTable resultTable);
         void onExecutionError();
+        void onConnectionError();
     }
 
     private ExecutionCallback callback;
@@ -205,8 +206,8 @@ public class EditorTabPanel extends JPanel {
         if (textArea != null) {
             Document doc = textArea.getDocument();
             if (doc != null) doc.putProperty("server", server);
-            Utilities.getEditorUI(textArea).getComponent()
-                    .setBackground(server.getBackgroundColor());
+            Color bg = server != null ? server.getBackgroundColor() : Config.getInstance().getDefaultBackgroundColor();
+            Utilities.getEditorUI(textArea).getComponent().setBackground(bg);
         }
         if (server != null) new ReloadQKeywords(server);
     }
@@ -393,6 +394,9 @@ public class EditorTabPanel extends JPanel {
                     if (exception != null) {
                         handleException(exception, s);
                         callback.onExecutionError();
+                        if (!(exception instanceof c.K4Exception)) {
+                            callback.onConnectionError();
+                        }
                     } else {
                         try {
                             Utilities.setStatusText(textArea,

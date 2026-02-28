@@ -24,8 +24,8 @@ public class Config {
 
     private Properties p = new Properties();
     private final Map<String, Server> servers = new HashMap<>();
-    private Collection<String> serverNames;
-    private ServerTreeNode serverTree;
+    private Collection<String> serverNames = new ArrayList<>();
+    private ServerTreeNode serverTree = new ServerTreeNode();
 
     private final static Config instance = new Config();
 
@@ -340,7 +340,12 @@ public class Config {
     private void convertFromOldVerion() {
         try {
             System.out.println("Found old config. Converting...");
-            String[] names = p.getProperty("Servers").split(",");
+            String serversValue = p.getProperty("Servers");
+            if (serversValue == null) {
+                System.err.println("Old config has no 'Servers' key; skipping conversion.");
+                return;
+            }
+            String[] names = serversValue.split(",");
             List<Server> list = new ArrayList<>();
             for (String name : names) {
                 Server server = initServerFromKey(name);
@@ -360,7 +365,7 @@ public class Config {
     }
 
     private void initServers() {
-        if (p.getProperty("version").equals(OLD_VERSION)) {
+        if (OLD_VERSION.equals(p.getProperty("version"))) {
             convertFromOldVerion();
         }
         serverNames = new ArrayList<>();
