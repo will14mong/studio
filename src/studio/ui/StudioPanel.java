@@ -1986,10 +1986,11 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
     }
 
     /**
-     * Probes a connection in the background by sending a minimal sync query ("1b").
-     * Leasing alone is insufficient to detect stale sockets — an actual I/O round-trip
-     * is needed. On success marks green; on failure calls handleDisconnection so the
-     * list is cleaned up consistently with a real execution failure.
+     * Probes a connection in the background by leasing it from the pool.
+     * For a brand-new service, leasing opens a real TCP connection + auth handshake,
+     * so a failure means the server is genuinely unreachable.  ReloadQKeywords (fired
+     * by bindToEditor) already performs an I/O round-trip for pooled connections, so
+     * no additional query is sent here.
      */
     private void probeInBackground(ServiceEntry entry, Server s) {
         new SwingWorker() {
@@ -1999,9 +2000,7 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
                 kx.c conn = null;
                 try {
                     conn = ConnectionPool.getInstance().leaseConnection(s);
-                    conn.k(new K.KCharacterVector("1b"));
-                    conn.getResponse();
-                    success = true;
+                    success = (conn != null);
                 } catch (Throwable ignored) {
                 } finally {
                     if (conn != null)
