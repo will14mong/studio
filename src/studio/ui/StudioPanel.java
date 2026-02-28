@@ -1986,23 +1986,32 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
     }
 
     /**
-     * Leases (and immediately frees) a connection in the background to verify
-     * reachability, then marks the service indicator green or red.
+     * Probes a connection in the background by sending a minimal sync query ("1b").
+     * Leasing alone is insufficient to detect stale sockets — an actual I/O round-trip
+     * is needed. On success marks green; on failure calls handleDisconnection so the
+     * list is cleaned up consistently with a real execution failure.
      */
     private void probeInBackground(ServiceEntry entry, Server s) {
         new SwingWorker() {
-            kx.c conn = null;
+            boolean success = false;
 
             public Object construct() {
+                kx.c conn = null;
                 try {
                     conn = ConnectionPool.getInstance().leaseConnection(s);
-                } catch (Exception ignored) {}
+                    conn.k(new K.KCharacterVector("1b"));
+                    conn.getResponse();
+                    success = true;
+                } catch (Throwable ignored) {
+                } finally {
+                    if (conn != null)
+                        ConnectionPool.getInstance().freeConnection(s, conn);
+                }
                 return null;
             }
 
             public void finished() {
-                if (conn != null) {
-                    ConnectionPool.getInstance().freeConnection(s, conn);
+                if (success) {
                     entry.setServer(s);
                     serviceBrowserPanel.markOk(entry);
                 } else {
@@ -2054,7 +2063,7 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
 
                 if (editorPanel != null && editorPanel.getServer() != null
                         && serviceBrowserPanel != null) {
-                    serviceBrowserPanel.markError(new ServiceEntry(
+                    serviceBrowserPanel.handleDisconnection(new ServiceEntry(
                             editorPanel.getServer().getName(),
                             editorPanel.getServer().getHost(),
                             editorPanel.getServer().getPort()));

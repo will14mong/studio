@@ -15,6 +15,8 @@ public class ServiceEntry {
     private final int port;
     /** Pre-resolved Server, if available. Set once credentials are known. */
     private Server server;
+    /** Background colour inherited from the parent discovery server (used when building a Server object). */
+    private Color backgroundColor = Color.white;
 
     /** Constructor for discovery results (no pre-resolved Server). */
     public ServiceEntry(String name, String host, int port) {
@@ -34,6 +36,9 @@ public class ServiceEntry {
     public String getName() { return name; }
     public String getHost() { return host; }
     public int getPort() { return port; }
+
+    public Color getBackgroundColor() { return backgroundColor; }
+    public void setBackgroundColor(Color c) { this.backgroundColor = c; }
 
     /** Unique key used for credential caching: host:port */
     public String getKey() { return host + ":" + port; }
@@ -56,7 +61,7 @@ public class ServiceEntry {
             port,
             username != null ? username : "",
             password != null ? password : "",
-            Color.white,
+            backgroundColor,
             Config.getInstance().getDefaultAuthMechanism(),
             false
         );

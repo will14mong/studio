@@ -116,6 +116,55 @@ public class ServiceBrowserPanel extends JPanel {
         serviceList.repaint();
     }
 
+    /**
+     * Called when a query execution (or connection probe) fails for the given service.
+     *
+     * <ul>
+     *   <li>If the failed service is the <em>discovery server</em>: all discovered
+     *       services are removed from the list and their pool connections are closed.
+     *       Only the discovery row remains, with its indicator turned red.</li>
+     *   <li>If the failed service is a <em>discovered service</em>: that row is
+     *       removed from the list and its pool connections are closed.</li>
+     * </ul>
+     */
+    public void handleDisconnection(ServiceEntry disconnected) {
+        String key = disconnected.getKey();
+        boolean isDiscoveryServer = currentServer != null
+                && key.equals(currentServer.getHost() + ":" + currentServer.getPort());
+
+        if (isDiscoveryServer) {
+            // Remove every discovered entry (index 1 onwards); keep index 0 (the discovery server row).
+            for (int i = services.size() - 1; i >= 1; i--) {
+                ServiceEntry e = services.remove(i);
+                listModel.remove(i);
+                statusMap.remove(e.getKey());
+                if (e.getServer() != null)
+                    ConnectionPool.getInstance().purge(e.getServer());
+            }
+            statusMap.put(key, Status.ERROR);
+            statusLabel.setText("Discovery server offline");
+        } else {
+            // Remove only the one disconnected service (skip index 0 = discovery server).
+            for (int i = 1; i < services.size(); i++) {
+                if (services.get(i).getKey().equals(key)) {
+                    ServiceEntry e = services.remove(i);
+                    listModel.remove(i);
+                    statusMap.remove(key);
+                    if (e.getServer() != null)
+                        ConnectionPool.getInstance().purge(e.getServer());
+                    break;
+                }
+            }
+            updateStatusLabel();
+        }
+        serviceList.repaint();
+    }
+
+    private void updateStatusLabel() {
+        int n = services.size();
+        statusLabel.setText(n + " service" + (n == 1 ? "" : "s"));
+    }
+
     // ─────────────────────────── Load for server ─────────────────────────────
 
     /**
@@ -131,9 +180,12 @@ public class ServiceBrowserPanel extends JPanel {
         final int myGeneration = ++loadGeneration;
         refreshBtn.setEnabled(true);
 
-        // Clear existing list
+        // Clear existing list and reset all status indicators so same-host:port
+        // entries on the new server start as UNKNOWN (grey) rather than inheriting
+        // stale OK/ERROR state from the previous server.
         listModel.clear();
         services.clear();
+        statusMap.clear();
         statusLabel.setText("Loading...");
 
         // Always add the parent server as the first entry
@@ -144,7 +196,7 @@ public class ServiceBrowserPanel extends JPanel {
 
         String query = server.getDiscoveryQuery();
         if (query == null || query.trim().isEmpty()) {
-            statusLabel.setText("1 service");
+            updateStatusLabel();
             return;
         }
 
@@ -180,10 +232,13 @@ public class ServiceBrowserPanel extends JPanel {
                     statusLabel.setText("Discovery error: " + errorMsg);
                 } else {
                     for (ServiceEntry e : found) {
+                        // Inherit the parent server's background colour so that
+                        // toServer() builds a Server with the right highlight colour.
+                        e.setBackgroundColor(server.getBackgroundColor());
                         services.add(e);
                         listModel.addElement(e);
                     }
-                    statusLabel.setText((1 + found.size()) + " service(s)");
+                    updateStatusLabel();
                 }
             }
         };
