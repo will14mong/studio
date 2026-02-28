@@ -2097,7 +2097,9 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
                 stopAction.setEnabled(false);
                 executeAction.setEnabled(true);
                 executeCurrentLineAction.setEnabled(true);
+            }
 
+            public void onConnectionError() {
                 if (editorPanel != null && editorPanel.getServer() != null
                         && serviceBrowserPanel != null) {
                     serviceBrowserPanel.handleDisconnection(new ServiceEntry(

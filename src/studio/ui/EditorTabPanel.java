@@ -57,6 +57,7 @@ public class EditorTabPanel extends JPanel {
         void onExecutionStarted();
         void onExecutionFinished(JTable resultTable);
         void onExecutionError();
+        void onConnectionError();
     }
 
     private ExecutionCallback callback;
@@ -393,6 +394,9 @@ public class EditorTabPanel extends JPanel {
                     if (exception != null) {
                         handleException(exception, s);
                         callback.onExecutionError();
+                        if (!(exception instanceof c.K4Exception)) {
+                            callback.onConnectionError();
+                        }
                     } else {
                         try {
                             Utilities.setStatusText(textArea,
