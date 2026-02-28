@@ -340,7 +340,12 @@ public class Config {
     private void convertFromOldVerion() {
         try {
             System.out.println("Found old config. Converting...");
-            String[] names = p.getProperty("Servers").split(",");
+            String serversValue = p.getProperty("Servers");
+            if (serversValue == null) {
+                System.err.println("Old config has no 'Servers' key; skipping conversion.");
+                return;
+            }
+            String[] names = serversValue.split(",");
             List<Server> list = new ArrayList<>();
             for (String name : names) {
                 Server server = initServerFromKey(name);
