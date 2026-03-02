@@ -209,7 +209,6 @@ public class EditorTabPanel extends JPanel {
             Color bg = server != null ? server.getBackgroundColor() : Config.getInstance().getDefaultBackgroundColor();
             Utilities.getEditorUI(textArea).getComponent().setBackground(bg);
         }
-        if (server != null) new ReloadQKeywords(server);
     }
 
     public Server getServer() { return server; }
