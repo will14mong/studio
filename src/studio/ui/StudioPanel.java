@@ -1012,6 +1012,7 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
         if (editorPanel != null) {
             editorPanel.bindServer(server);
             syncFromTab(editorPanel);
+            new ReloadQKeywords(server);
         }
 
         if (textArea != null) {
@@ -1966,6 +1967,7 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
                     entry.setServer(anonServer);
                     sessionCredentials.put(entry.getKey(), new String[]{"", ""});
                     serviceBrowserPanel.markOk(entry);
+                    new ReloadQKeywords(anonServer);
                 } else if (needsAuth) {
                     // Server requires credentials — check session cache, then prompt.
                     // If cached credentials are also wrong, probeInBackground will evict
@@ -2030,6 +2032,7 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
                     entry.setServer(s);
                     sessionCredentials.put(entry.getKey(), new String[]{s.getUsername(), s.getPassword()});
                     serviceBrowserPanel.markOk(entry);
+                    new ReloadQKeywords(s);
                 } else if (authFailed) {
                     // Evict any cached credentials that turned out to be wrong
                     sessionCredentials.remove(entry.getKey());
