@@ -4,6 +4,8 @@ import studio.kdb.*;
 import studio.utils.SwingWorker;
 
 import javax.swing.*;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
 import java.awt.*;
 import java.awt.event.*;
 import java.util.ArrayList;
@@ -40,6 +42,7 @@ public class ServiceBrowserPanel extends JPanel {
     private final JList<ServiceEntry> serviceList = new JList<>(listModel);
     private final JLabel statusLabel = new JLabel(" ");
     private final JButton refreshBtn = new JButton("Refresh");
+    private final JTextField filterField = new JTextField();
 
     // ── Callback ──────────────────────────────────────────────────────────────
     public interface ServiceSelectionListener {
@@ -75,6 +78,23 @@ public class ServiceBrowserPanel extends JPanel {
         toolbar.add(Box.createHorizontalStrut(4));
         toolbar.add(refreshBtn);
 
+        // ── Filter bar ───────────────────────────────────────────────────────
+        filterField.setToolTipText("Type to filter services by name, host, or port");
+        filterField.getDocument().addDocumentListener(new DocumentListener() {
+            public void insertUpdate(DocumentEvent e)  { applyFilter(); }
+            public void removeUpdate(DocumentEvent e)  { applyFilter(); }
+            public void changedUpdate(DocumentEvent e) { applyFilter(); }
+        });
+
+        JPanel filterBar = new JPanel(new BorderLayout(4, 0));
+        filterBar.setBorder(BorderFactory.createEmptyBorder(0, 4, 4, 4));
+        filterBar.add(new JLabel("Filter:"), BorderLayout.WEST);
+        filterBar.add(filterField, BorderLayout.CENTER);
+
+        JPanel north = new JPanel(new BorderLayout());
+        north.add(toolbar,   BorderLayout.NORTH);
+        north.add(filterBar, BorderLayout.SOUTH);
+
         // ── Service list ─────────────────────────────────────────────────────
         serviceList.setCellRenderer(new ServiceCellRenderer());
         serviceList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
@@ -97,9 +117,27 @@ public class ServiceBrowserPanel extends JPanel {
         statusLabel.setFont(statusLabel.getFont().deriveFont(Font.ITALIC, 11f));
         statusLabel.setBorder(BorderFactory.createEmptyBorder(2, 4, 2, 4));
 
-        add(toolbar, BorderLayout.NORTH);
-        add(scroll,  BorderLayout.CENTER);
+        add(north,  BorderLayout.NORTH);
+        add(scroll, BorderLayout.CENTER);
         add(statusLabel, BorderLayout.SOUTH);
+    }
+
+    /**
+     * Rebuilds listModel from services, keeping only entries whose name, host,
+     * or port contain the current filter text (case-insensitive). An empty filter
+     * shows all entries.
+     */
+    private void applyFilter() {
+        String text = filterField.getText().trim().toLowerCase();
+        listModel.clear();
+        for (ServiceEntry e : services) {
+            if (text.isEmpty()
+                    || e.getName().toLowerCase().contains(text)
+                    || e.getHost().toLowerCase().contains(text)
+                    || String.valueOf(e.getPort()).contains(text)) {
+                listModel.addElement(e);
+            }
+        }
     }
 
     // ──────────────────────── Public status update ───────────────────────────
@@ -136,7 +174,6 @@ public class ServiceBrowserPanel extends JPanel {
             // Remove every discovered entry (index 1 onwards); keep index 0 (the discovery server row).
             for (int i = services.size() - 1; i >= 1; i--) {
                 ServiceEntry e = services.remove(i);
-                listModel.remove(i);
                 statusMap.remove(e.getKey());
                 if (e.getServer() != null)
                     ConnectionPool.getInstance().purge(e.getServer());
@@ -148,7 +185,6 @@ public class ServiceBrowserPanel extends JPanel {
             for (int i = 1; i < services.size(); i++) {
                 if (services.get(i).getKey().equals(key)) {
                     ServiceEntry e = services.remove(i);
-                    listModel.remove(i);
                     statusMap.remove(key);
                     if (e.getServer() != null)
                         ConnectionPool.getInstance().purge(e.getServer());
@@ -157,6 +193,7 @@ public class ServiceBrowserPanel extends JPanel {
             }
             updateStatusLabel();
         }
+        applyFilter();
         serviceList.repaint();
     }
 
@@ -192,7 +229,7 @@ public class ServiceBrowserPanel extends JPanel {
         ServiceEntry parentEntry = new ServiceEntry(
                 server.getName(), server.getHost(), server.getPort(), server);
         services.add(parentEntry);
-        listModel.addElement(parentEntry);
+        applyFilter();
 
         String query = server.getDiscoveryQuery();
         if (query == null || query.trim().isEmpty()) {
@@ -236,8 +273,8 @@ public class ServiceBrowserPanel extends JPanel {
                         // toServer() builds a Server with the right highlight colour.
                         e.setBackgroundColor(server.getBackgroundColor());
                         services.add(e);
-                        listModel.addElement(e);
                     }
+                    applyFilter();
                     updateStatusLabel();
                 }
             }
