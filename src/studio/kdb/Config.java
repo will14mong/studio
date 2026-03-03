@@ -37,10 +37,7 @@ public class Config {
         String name = p.getProperty("font.name", "Monospaced");
         int  size = Integer.parseInt(p.getProperty("font.size","14"));
 
-        Font f = new Font(name, Font.PLAIN, size);
-        setFont(f);
-
-        return f;
+        return new Font(name, Font.PLAIN, size);
     }
 
     public String getEncoding() {
