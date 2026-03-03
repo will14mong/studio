@@ -96,7 +96,7 @@ public class Server {
 
     @Override
     public int hashCode() {
-        return name.hashCode();
+        return Objects.hash(name, host, port, username, password, authenticationMechanism, useTLS);
     }
 
     public Server(Server s) {
