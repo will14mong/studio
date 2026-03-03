@@ -1965,7 +1965,9 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
                 if (anonOk) {
                     // Anonymous connection succeeded — no credentials required
                     entry.setServer(anonServer);
-                    sessionCredentials.put(entry.getKey(), new String[]{"", ""});
+                    sessionCredentials.put(entry.getKey(), new String[]{"", "",
+                            anonServer.getAuthenticationMechanism(),
+                            String.valueOf(anonServer.getUseTLS())});
                     serviceBrowserPanel.markOk(entry);
                     new ReloadQKeywords(anonServer);
                 } else if (needsAuth) {
@@ -1974,7 +1976,8 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
                     // them and call promptCredentialsAndConnect to start the retry loop.
                     String[] creds = sessionCredentials.get(entry.getKey());
                     if (creds != null) {
-                        Server credServer = entry.toServer(creds[0], creds[1]);
+                        Server credServer = entry.toServer(creds[0], creds[1],
+                                creds[2], Boolean.parseBoolean(creds[3]));
                         bindToEditor(credServer);
                         probeInBackground(entry, credServer);
                     } else {
@@ -2030,7 +2033,8 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
             public void finished() {
                 if (success) {
                     entry.setServer(s);
-                    sessionCredentials.put(entry.getKey(), new String[]{s.getUsername(), s.getPassword()});
+                    sessionCredentials.put(entry.getKey(), new String[]{s.getUsername(), s.getPassword(),
+                            s.getAuthenticationMechanism(), String.valueOf(s.getUseTLS())});
                     serviceBrowserPanel.markOk(entry);
                     new ReloadQKeywords(s);
                 } else if (authFailed) {
@@ -2056,7 +2060,8 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
             serviceBrowserPanel.markError(entry);
             return;
         }
-        Server credServer = entry.toServer(creds[0], creds[1]);
+        Server credServer = entry.toServer(creds[0], creds[1],
+                creds[2], Boolean.parseBoolean(creds[3]));
         bindToEditor(credServer);
         probeInBackground(entry, credServer);
     }

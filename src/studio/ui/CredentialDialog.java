@@ -1,21 +1,35 @@
 package studio.ui;
 
+import studio.core.AuthenticationManager;
+import studio.core.DefaultAuthenticationMechanism;
+
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.*;
+import java.util.Arrays;
 
 /**
- * Modal dialog that prompts for username and password before connecting to
- * a discovered service for the first time. Credentials are NOT persisted.
+ * Modal dialog that prompts for username, password, auth mechanism, and TLS
+ * before connecting to a discovered service. Credentials are NOT persisted.
+ * Returns a 4-element String[]: { username, password, authMechanism, "true"|"false" },
+ * or null if the user cancelled.
  */
 public class CredentialDialog extends JDialog {
 
     private final JTextField     usernameField = new JTextField(20);
     private final JPasswordField passwordField = new JPasswordField(20);
+    private final JComboBox<String> authCombo;
+    private final JCheckBox      tlsCheck      = new JCheckBox("Use TLS");
     private boolean accepted = false;
 
     private CredentialDialog(Frame parent, String serviceName, String errorMessage) {
         super(parent, "Connect to " + serviceName, true);
+
+        String[] mechanisms = AuthenticationManager.getInstance().getAuthenticationMechanisms();
+        Arrays.sort(mechanisms);
+        authCombo = new JComboBox<>(mechanisms);
+        authCombo.setSelectedItem(DefaultAuthenticationMechanism.NAME);
+
         buildUI(serviceName, errorMessage);
         pack();
         Util.centerChildOnParent(this, parent);
@@ -57,6 +71,17 @@ public class CredentialDialog extends JDialog {
         form.add(new JLabel("Password:"), lc);
         form.add(passwordField, fc);
 
+        lc.gridy = row; fc.gridy = row++;
+        form.add(new JLabel("Auth Mechanism:"), lc);
+        form.add(authCombo, fc);
+
+        // TLS checkbox spans both columns
+        GridBagConstraints tc = new GridBagConstraints();
+        tc.gridx = 0; tc.gridy = row++; tc.gridwidth = 2;
+        tc.anchor = GridBagConstraints.WEST;
+        tc.insets = new Insets(4, 8, 4, 8);
+        form.add(tlsCheck, tc);
+
         JButton okBtn     = new JButton("Connect");
         JButton cancelBtn = new JButton("Cancel");
 
@@ -83,11 +108,10 @@ public class CredentialDialog extends JDialog {
     }
 
     /**
-     * Show the credential dialog. Returns String[]{username, password} if the
-     * user clicked Connect, or null if cancelled.
+     * Show the credential dialog. Returns { username, password, authMechanism, "true"|"false" }
+     * if the user clicked Connect, or null if cancelled.
      *
-     * @param errorMessage optional message shown in red above the form (e.g. after
-     *                     a failed attempt); pass null for the initial prompt.
+     * @param errorMessage optional message shown in red above the form; pass null for initial prompt.
      */
     public static String[] prompt(Frame parent, String serviceName, String errorMessage) {
         CredentialDialog dlg = new CredentialDialog(parent, serviceName, errorMessage);
@@ -95,12 +119,9 @@ public class CredentialDialog extends JDialog {
         if (!dlg.accepted) return null;
         return new String[]{
             dlg.usernameField.getText(),
-            new String(dlg.passwordField.getPassword())
+            new String(dlg.passwordField.getPassword()),
+            (String) dlg.authCombo.getSelectedItem(),
+            String.valueOf(dlg.tlsCheck.isSelected())
         };
-    }
-
-    /** Convenience overload for the initial prompt (no error message). */
-    public static String[] prompt(Frame parent, String serviceName) {
-        return prompt(parent, serviceName, null);
     }
 }

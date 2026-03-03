@@ -51,9 +51,20 @@ public class ServiceEntry {
 
     /**
      * Returns the pre-resolved Server if available, otherwise creates one from the
-     * supplied credentials. Use setServer() to cache the result for connection reuse.
+     * supplied credentials using Config defaults for auth mechanism and TLS.
+     * Used for the initial anonymous probe (before credentials are known).
      */
     public Server toServer(String username, String password) {
+        return toServer(username, password,
+                Config.getInstance().getDefaultAuthMechanism(), false);
+    }
+
+    /**
+     * Returns the pre-resolved Server if available, otherwise creates one from
+     * all supplied connection settings. Used after the credential dialog.
+     */
+    public Server toServer(String username, String password,
+                           String authenticationMechanism, boolean useTLS) {
         if (server != null) return server;
         return new Server(
             name,
@@ -62,8 +73,9 @@ public class ServiceEntry {
             username != null ? username : "",
             password != null ? password : "",
             backgroundColor,
-            Config.getInstance().getDefaultAuthMechanism(),
-            false
+            authenticationMechanism != null ? authenticationMechanism
+                                            : Config.getInstance().getDefaultAuthMechanism(),
+            useTLS
         );
     }
 
