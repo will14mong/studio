@@ -79,11 +79,15 @@ public class ServiceBrowserPanel extends JPanel {
         toolbar.add(refreshBtn);
 
         // ── Filter bar ───────────────────────────────────────────────────────
-        filterField.setToolTipText("Type to filter services by name, host, or port");
+        filterField.setToolTipText("Filter by name, host, or port; space = OR; ESC clears");
         filterField.getDocument().addDocumentListener(new DocumentListener() {
             public void insertUpdate(DocumentEvent e)  { applyFilter(); }
             public void removeUpdate(DocumentEvent e)  { applyFilter(); }
             public void changedUpdate(DocumentEvent e) { applyFilter(); }
+        });
+        filterField.getInputMap().put(KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0), "clearFilter");
+        filterField.getActionMap().put("clearFilter", new AbstractAction() {
+            public void actionPerformed(ActionEvent e) { filterField.setText(""); }
         });
 
         JPanel filterBar = new JPanel(new BorderLayout(4, 0));
@@ -123,21 +127,29 @@ public class ServiceBrowserPanel extends JPanel {
     }
 
     /**
-     * Rebuilds listModel from services, keeping only entries whose name, host,
-     * or port contain the current filter text (case-insensitive). An empty filter
-     * shows all entries.
+     * Rebuilds listModel from services applying the current filter (case-insensitive).
+     * Multiple space-separated terms are treated as OR: an entry matches if any term
+     * appears in its name, host, or port. An empty filter shows all entries.
      */
     private void applyFilter() {
-        String text = filterField.getText().trim().toLowerCase();
+        String raw = filterField.getText().trim().toLowerCase();
+        String[] terms = raw.isEmpty() ? new String[0] : raw.split("\\s+");
         listModel.clear();
         for (ServiceEntry e : services) {
-            if (text.isEmpty()
-                    || e.getName().toLowerCase().contains(text)
-                    || e.getHost().toLowerCase().contains(text)
-                    || String.valueOf(e.getPort()).contains(text)) {
+            if (terms.length == 0 || matchesAny(e, terms)) {
                 listModel.addElement(e);
             }
         }
+    }
+
+    private boolean matchesAny(ServiceEntry e, String[] terms) {
+        String name = e.getName().toLowerCase();
+        String host = e.getHost().toLowerCase();
+        String port = String.valueOf(e.getPort());
+        for (String term : terms) {
+            if (name.contains(term) || host.contains(term) || port.contains(term)) return true;
+        }
+        return false;
     }
 
     // ──────────────────────── Public status update ───────────────────────────
