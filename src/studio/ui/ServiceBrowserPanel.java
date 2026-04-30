@@ -7,6 +7,7 @@ import javax.swing.*;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import java.awt.*;
+import java.awt.datatransfer.StringSelection;
 import java.awt.event.*;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -103,12 +104,38 @@ public class ServiceBrowserPanel extends JPanel {
         serviceList.setCellRenderer(new ServiceCellRenderer());
         serviceList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
 
+        JPopupMenu contextMenu = new JPopupMenu();
+        JMenuItem copyItem = new JMenuItem("Copy");
+        copyItem.addActionListener(e -> {
+            int idx = serviceList.getSelectedIndex();
+            if (idx >= 0) {
+                ServiceEntry entry = listModel.getElementAt(idx);
+                String text = entry.getHost() + ":" + entry.getPort();
+                Toolkit.getDefaultToolkit().getSystemClipboard()
+                        .setContents(new StringSelection(text), null);
+            }
+        });
+        contextMenu.add(copyItem);
+
         serviceList.addMouseListener(new MouseAdapter() {
             public void mouseClicked(MouseEvent e) {
-                if (e.getClickCount() == 1) {
+                if (e.getClickCount() == 1 && !SwingUtilities.isRightMouseButton(e)) {
                     int idx = serviceList.locationToIndex(e.getPoint());
                     if (idx >= 0 && selectionListener != null) {
                         selectionListener.onServiceSelected(listModel.getElementAt(idx));
+                    }
+                }
+            }
+
+            public void mousePressed(MouseEvent e)  { maybeShowPopup(e); }
+            public void mouseReleased(MouseEvent e) { maybeShowPopup(e); }
+
+            private void maybeShowPopup(MouseEvent e) {
+                if (e.isPopupTrigger()) {
+                    int idx = serviceList.locationToIndex(e.getPoint());
+                    if (idx >= 0) {
+                        serviceList.setSelectedIndex(idx);
+                        contextMenu.show(serviceList, e.getX(), e.getY());
                     }
                 }
             }
