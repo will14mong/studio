@@ -105,8 +105,9 @@ public class ServiceBrowserPanel extends JPanel {
         serviceList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
 
         JPopupMenu contextMenu = new JPopupMenu();
-        JMenuItem copyItem = new JMenuItem("Copy");
-        copyItem.addActionListener(e -> {
+
+        JMenuItem copyHostPortItem = new JMenuItem("Copy Host/Port");
+        copyHostPortItem.addActionListener(e -> {
             int idx = serviceList.getSelectedIndex();
             if (idx >= 0) {
                 ServiceEntry entry = listModel.getElementAt(idx);
@@ -115,7 +116,18 @@ public class ServiceBrowserPanel extends JPanel {
                         .setContents(new StringSelection(text), null);
             }
         });
-        contextMenu.add(copyItem);
+        contextMenu.add(copyHostPortItem);
+
+        JMenuItem copySvcNameItem = new JMenuItem("Copy Svc Name");
+        copySvcNameItem.addActionListener(e -> {
+            int idx = serviceList.getSelectedIndex();
+            if (idx >= 0) {
+                ServiceEntry entry = listModel.getElementAt(idx);
+                Toolkit.getDefaultToolkit().getSystemClipboard()
+                        .setContents(new StringSelection(entry.getName()), null);
+            }
+        });
+        contextMenu.add(copySvcNameItem);
 
         serviceList.addMouseListener(new MouseAdapter() {
             public void mouseClicked(MouseEvent e) {
