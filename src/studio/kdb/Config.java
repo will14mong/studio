@@ -24,8 +24,8 @@ public class Config {
 
     private Properties p = new Properties();
     private final Map<String, Server> servers = new HashMap<>();
-    private Collection<String> serverNames;
-    private ServerTreeNode serverTree;
+    private Collection<String> serverNames = new ArrayList<>();
+    private ServerTreeNode serverTree = new ServerTreeNode();
 
     private final static Config instance = new Config();
 
@@ -37,10 +37,7 @@ public class Config {
         String name = p.getProperty("font.name", "Monospaced");
         int  size = Integer.parseInt(p.getProperty("font.size","14"));
 
-        Font f = new Font(name, Font.PLAIN, size);
-        setFont(f);
-
-        return f;
+        return new Font(name, Font.PLAIN, size);
     }
 
     public String getEncoding() {
@@ -326,8 +323,11 @@ public class Config {
         String backgroundColor = p.getProperty("server." + key + ".backgroundColor", "FFFFFF");
         String authenticationMechanism = p.getProperty("server." + key + ".authenticationMechanism", DefaultAuthenticationMechanism.NAME);
         boolean useTLS = Boolean.parseBoolean(p.getProperty("server." + key + ".useTLS", "false"));
+        String discoveryQuery = p.getProperty("server." + key + ".discoveryQuery", "");
         Color c = new Color(Integer.parseInt(backgroundColor, 16));
-        return new Server("", host, port, username, password, c, authenticationMechanism, useTLS);
+        Server server = new Server("", host, port, username, password, c, authenticationMechanism, useTLS);
+        server.setDiscoveryQuery(discoveryQuery);
+        return server;
     }
 
     private Server initServerFromProperties(int number) {
@@ -337,7 +337,12 @@ public class Config {
     private void convertFromOldVerion() {
         try {
             System.out.println("Found old config. Converting...");
-            String[] names = p.getProperty("Servers").split(",");
+            String serversValue = p.getProperty("Servers");
+            if (serversValue == null) {
+                System.err.println("Old config has no 'Servers' key; skipping conversion.");
+                return;
+            }
+            String[] names = serversValue.split(",");
             List<Server> list = new ArrayList<>();
             for (String name : names) {
                 Server server = initServerFromKey(name);
@@ -357,7 +362,7 @@ public class Config {
     }
 
     private void initServers() {
-        if (p.getProperty("version").equals(OLD_VERSION)) {
+        if (OLD_VERSION.equals(p.getProperty("version"))) {
             convertFromOldVerion();
         }
         serverNames = new ArrayList<>();
@@ -405,6 +410,7 @@ public class Config {
         p.setProperty("server." + number + ".backgroundColor", "" + Integer.toHexString(server.getBackgroundColor().getRGB()).substring(2));
         p.setProperty("server." + number + ".authenticationMechanism", server.getAuthenticationMechanism());
         p.setProperty("server." + number + ".useTLS", "" + server.getUseTLS());
+        p.setProperty("server." + number + ".discoveryQuery", server.getDiscoveryQuery());
     }
 
     private int saveServerTree(String keyPrefix, ServerTreeNode node, int number) {

@@ -29,6 +29,7 @@ import org.netbeans.editor.*;
 import org.netbeans.editor.Utilities;
 import studio.core.Credentials;
 import studio.kdb.ListModel;
+import studio.kdb.ServiceEntry;
 import studio.qeditor.QKit;
 import org.netbeans.editor.ext.ExtKit;
 import org.netbeans.editor.ext.ExtSettingsInitializer;
@@ -64,6 +65,14 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
     private JSplitPane splitpane;
     private JTabbedPane tabbedPane;
     private ServerList serverList;
+
+    // ── Discovery / service browser ──────────────────────────────────────────
+    private ServiceBrowserPanel serviceBrowserPanel;
+    private EditorTabPanel editorPanel;
+    /** The server currently selected in the discovery dropdown (may differ from active connection). */
+    private Server discoveryServer;
+    /** In-session credential cache: service key (host:port) → {username, password} */
+    private final Map<String, String[]> sessionCredentials = new HashMap<>();
     private UserAction arrangeAllAction;
     private UserAction closeFileAction;
     private UserAction newFileAction;
@@ -105,11 +114,14 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
     private final static int MAX_SERVERS_TO_CLONE = 20;
 
     public void refreshFrameTitle() {
-        String s = (String) textArea.getDocument().getProperty("filename");
+        String s = (textArea != null) ? (String) textArea.getDocument().getProperty("filename") : null;
         if (s == null)
             s = "Script" + myScriptNumber;
-        String title = s.replace('\\','/');
-        frame.setTitle(title + (getModified() ? " (not saved) " : "") + (server!=null?" @"+server.toString():"") +" Studio for kdb+ " + Lm.getVersionString());
+        String title = s.replace('\\', '/');
+        Server activeServer = activeServer();
+        frame.setTitle(title + (getModified() ? " (not saved) " : "")
+                + (activeServer != null ? " @" + activeServer.toString() : "")
+                + " Studio for kdb+ " + Lm.getVersionString());
     }
 
     public static class WindowListChangedEvent extends EventObject {
@@ -175,7 +187,7 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
                     copyAction.putValue(Action.SHORT_DESCRIPTION,"Copy the selected text to the clipboard");
                     copyAction.putValue(Action.SMALL_ICON,Util.COPY_ICON);
                     copyAction.putValue(Action.NAME,I18n.getString("Copy"));
-                    copyAction.putValue(Action.MNEMONIC_KEY,new Integer(KeyEvent.VK_C));
+                    copyAction.putValue(Action.MNEMONIC_KEY, KeyEvent.VK_C);
                     copyAction.putValue(Action.ACCELERATOR_KEY,KeyStroke.getKeyStroke(KeyEvent.VK_C,menuShortcutKeyMask));
                 }
                 else if (actions[i] instanceof BaseKit.CutAction) {
@@ -183,7 +195,7 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
                     cutAction.putValue(Action.SHORT_DESCRIPTION,"Cut the selected text");
                     cutAction.putValue(Action.SMALL_ICON,Util.CUT_ICON);
                     cutAction.putValue(Action.NAME,I18n.getString("Cut"));
-                    cutAction.putValue(Action.MNEMONIC_KEY,new Integer(KeyEvent.VK_T));
+                    cutAction.putValue(Action.MNEMONIC_KEY, KeyEvent.VK_T);
                     cutAction.putValue(Action.ACCELERATOR_KEY,KeyStroke.getKeyStroke(KeyEvent.VK_X,menuShortcutKeyMask));
                 }
                 else if (actions[i] instanceof BaseKit.PasteAction) {
@@ -191,7 +203,7 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
                     pasteAction.putValue(Action.SHORT_DESCRIPTION,"Paste text from the clipboard");
                     pasteAction.putValue(Action.SMALL_ICON,Util.PASTE_ICON);
                     pasteAction.putValue(Action.NAME,I18n.getString("Paste"));
-                    pasteAction.putValue(Action.MNEMONIC_KEY,new Integer(KeyEvent.VK_P));
+                    pasteAction.putValue(Action.MNEMONIC_KEY, KeyEvent.VK_P);
                     pasteAction.putValue(Action.ACCELERATOR_KEY,KeyStroke.getKeyStroke(KeyEvent.VK_V,menuShortcutKeyMask));
                 }
                 else if (actions[i] instanceof ExtKit.FindAction) {
@@ -199,7 +211,7 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
                     findAction.putValue(Action.SHORT_DESCRIPTION,"Find text in the document");
                     findAction.putValue(Action.SMALL_ICON,Util.FIND_ICON);
                     findAction.putValue(Action.NAME,I18n.getString("Find"));
-                    findAction.putValue(Action.MNEMONIC_KEY,new Integer(KeyEvent.VK_F));
+                    findAction.putValue(Action.MNEMONIC_KEY, KeyEvent.VK_F);
                     findAction.putValue(Action.ACCELERATOR_KEY,KeyStroke.getKeyStroke(KeyEvent.VK_F,menuShortcutKeyMask));
                 }
                 else if (actions[i] instanceof ExtKit.ReplaceAction) {
@@ -207,7 +219,7 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
                     replaceAction.putValue(Action.SHORT_DESCRIPTION,"Replace text in the document");
                     replaceAction.putValue(Action.SMALL_ICON,Util.REPLACE_ICON);
                     replaceAction.putValue(Action.NAME,I18n.getString("Replace"));
-                    replaceAction.putValue(Action.MNEMONIC_KEY,new Integer(KeyEvent.VK_R));
+                    replaceAction.putValue(Action.MNEMONIC_KEY, KeyEvent.VK_R);
                     replaceAction.putValue(Action.ACCELERATOR_KEY,KeyStroke.getKeyStroke(KeyEvent.VK_R,menuShortcutKeyMask));
                 }
                 else if (actions[i] instanceof BaseKit.SelectAllAction) {
@@ -215,7 +227,7 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
                     selectAllAction.putValue(Action.SHORT_DESCRIPTION,"Select all text in the document");
                     selectAllAction.putValue(Action.SMALL_ICON,null);
                     selectAllAction.putValue(Action.NAME,I18n.getString("SelectAll"));
-                    selectAllAction.putValue(Action.MNEMONIC_KEY,new Integer(KeyEvent.VK_A));
+                    selectAllAction.putValue(Action.MNEMONIC_KEY, KeyEvent.VK_A);
                     selectAllAction.putValue(Action.ACCELERATOR_KEY,KeyStroke.getKeyStroke(KeyEvent.VK_A,menuShortcutKeyMask));
                 }
                 else if (actions[i] instanceof ActionFactory.UndoAction) {
@@ -223,7 +235,7 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
                     undoAction.putValue(Action.SHORT_DESCRIPTION,"Undo the last change to the document");
                     undoAction.putValue(Action.SMALL_ICON,Util.UNDO_ICON);
                     undoAction.putValue(Action.NAME,I18n.getString("Undo"));
-                    undoAction.putValue(Action.MNEMONIC_KEY,new Integer(KeyEvent.VK_U));
+                    undoAction.putValue(Action.MNEMONIC_KEY, KeyEvent.VK_U);
                     undoAction.putValue(Action.ACCELERATOR_KEY,KeyStroke.getKeyStroke(KeyEvent.VK_Z,menuShortcutKeyMask));
                 }
                 else if (actions[i] instanceof ActionFactory.RedoAction) {
@@ -231,7 +243,7 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
                     redoAction.putValue(Action.SHORT_DESCRIPTION,"Redo the last change to the document");
                     redoAction.putValue(Action.SMALL_ICON,Util.REDO_ICON);
                     redoAction.putValue(Action.NAME,I18n.getString("Redo"));
-                    redoAction.putValue(Action.MNEMONIC_KEY,new Integer(KeyEvent.VK_R));
+                    redoAction.putValue(Action.MNEMONIC_KEY, KeyEvent.VK_R);
                     redoAction.putValue(Action.ACCELERATOR_KEY,KeyStroke.getKeyStroke(KeyEvent.VK_Y,menuShortcutKeyMask));
                 }
 
@@ -996,12 +1008,20 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
 
         this.server = server;
 
+        // Bind single editor panel to the new server
+        if (editorPanel != null) {
+            editorPanel.bindServer(server);
+            syncFromTab(editorPanel);
+            new ReloadQKeywords(server);
+        }
+
         if (textArea != null) {
             Document doc = textArea.getDocument();
 
             if (doc != null)
                 doc.putProperty("server",server);
-            Utilities.getEditorUI(textArea).getComponent().setBackground(server.getBackgroundColor());
+            Color bg = server != null ? server.getBackgroundColor() : Config.getInstance().getDefaultBackgroundColor();
+            Utilities.getEditorUI(textArea).getComponent().setBackground(bg);
         }
 
         new ReloadQKeywords(server);
@@ -1009,13 +1029,18 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
 
         refreshFrameTitle();
         windowListMonitor.fireMyEvent(new WindowListChangedEvent(this));
+
+        // Populate service browser for the new server
+        if (serviceBrowserPanel != null) {
+            serviceBrowserPanel.loadForServer(server);
+        }
     }
 
     private void initActions() {
         newFileAction = new UserAction(I18n.getString("New"),
                                         Util.NEW_DOCUMENT_ICON,
                                        "Create a blank script",
-                                       new Integer(KeyEvent.VK_N),
+                                        KeyEvent.VK_N,
                                        null) {
             public void actionPerformed(ActionEvent e) {
                 //   PrintUtilities.printComponent(textArea);
@@ -1026,7 +1051,7 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
         arrangeAllAction = new UserAction(I18n.getString("ArrangeAll"),
                                            Util.BLANK_ICON,
                                           "Arrange all windows on screen",
-                                          new Integer(KeyEvent.VK_A),
+                                          KeyEvent.VK_A,
                                           null) {
             public void actionPerformed(ActionEvent e) {
                 arrangeAll();
@@ -1036,7 +1061,7 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
         minMaxDividerAction = new UserAction(I18n.getString("MaximizeEditorPane"),
                                              Util.BLANK_ICON,
                                              "Maximize editor pane",
-                                             new Integer(KeyEvent.VK_M),
+                                             KeyEvent.VK_M,
                                              KeyStroke.getKeyStroke(KeyEvent.VK_M,menuShortcutKeyMask)) {
             public void actionPerformed(ActionEvent e) {
               minMaxDivider();
@@ -1046,7 +1071,7 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
         toggleDividerOrientationAction = new UserAction(I18n.getString("ToggleDividerOrientation"),
                                                          Util.BLANK_ICON,
                                                         "Toggle the window divider's orientation",
-                                                        new Integer(KeyEvent.VK_C),
+                                                        KeyEvent.VK_C,
                                                         null) {
             public void actionPerformed(ActionEvent e) {
                 toggleDividerOrientation();
@@ -1056,7 +1081,7 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
         closeFileAction = new UserAction(I18n.getString("Close"),
                                          Util.BLANK_ICON,
                                          "Close current document",
-                                         new Integer(KeyEvent.VK_C),
+                                         KeyEvent.VK_C,
                                          null) {
             public void actionPerformed(ActionEvent e) {
                 quitWindow();
@@ -1068,7 +1093,7 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
         openFileAction = new UserAction(I18n.getString("Open"),
                                         Util.FOLDER_ICON,
                                         "Open a script",
-                                        new Integer(KeyEvent.VK_O),
+                                        KeyEvent.VK_O,
                                         KeyStroke.getKeyStroke(KeyEvent.VK_O,menuShortcutKeyMask)) {
             public void actionPerformed(ActionEvent e) {
                 openFile();
@@ -1078,7 +1103,7 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
         openFileInNewWindowAction = new UserAction(I18n.getString("NewWindow"),
                                                    Util.BLANK_ICON,
                                                    "Open a new window",
-                                                   new Integer(KeyEvent.VK_N),
+                                                    KeyEvent.VK_N,
                                                    KeyStroke.getKeyStroke(KeyEvent.VK_N, menuShortcutKeyMask) ) {
             public void actionPerformed(ActionEvent e) {
                 new StudioPanel(server,null);
@@ -1088,7 +1113,7 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
         serverListAction = new UserAction(I18n.getString("ServerList"),
                 Util.TEXT_TREE_ICON,
                 "Show sever list",
-                new Integer(KeyEvent.VK_L),
+                KeyEvent.VK_L,
                 KeyStroke.getKeyStroke(KeyEvent.VK_L, menuShortcutKeyMask | Event.SHIFT_MASK) ) {
                         public void actionPerformed(ActionEvent e) {
                             if (serverList == null) {
@@ -1128,10 +1153,13 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
         editServerAction = new UserAction(I18n.getString("Edit"),
                                           Util.SERVER_INFORMATION_ICON,
                                           "Edit the server details",
-                                          new Integer(KeyEvent.VK_E),
+                                            KeyEvent.VK_E,
                                           null) {
             public void actionPerformed(ActionEvent e) {
-                Server s = new Server(server);
+                // Always edit the discovery server (the parent), not the currently
+                // active service — discovered services are defined by the query.
+                Server target = discoveryServer != null ? discoveryServer : server;
+                Server s = new Server(target);
 
                 EditServerForm f = new EditServerForm(frame,s);
                 f.alignAndShow();
@@ -1139,12 +1167,13 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
                     if (stopAction.isEnabled())
                         stopAction.actionPerformed(e);
 
-                    ConnectionPool.getInstance().purge(server);
-                    Config.getInstance().removeServer(server);
+                    ConnectionPool.getInstance().purge(target);
+                    Config.getInstance().removeServer(target);
 
                     s = f.getServer();
                     Config.getInstance().addServer(s);
-                    setServer(s);
+                    discoveryServer = s;
+                    serviceBrowserPanel.loadForServer(s);
                     rebuildToolbar();
                     rebuildMenuBar();
 
@@ -1157,7 +1186,7 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
         addServerAction = new UserAction(I18n.getString("Add"),
                                          Util.ADD_SERVER_ICON,
                                          "Configure a new server",
-                                         new Integer(KeyEvent.VK_A),
+                                         KeyEvent.VK_A,
                                          null) {
             public void actionPerformed(ActionEvent e) {
                 AddServerForm f = new AddServerForm(frame);
@@ -1177,7 +1206,7 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
         removeServerAction = new UserAction(I18n.getString("Remove"),
                                             Util.DELETE_SERVER_ICON,
                                             "Remove this server",
-                                            new Integer(KeyEvent.VK_R),
+                                            KeyEvent.VK_R,
                                             null) {
             public void actionPerformed(ActionEvent e) {
                 int choice = JOptionPane.showOptionDialog(frame,
@@ -1208,7 +1237,7 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
         saveFileAction = new UserAction(I18n.getString("Save"),
                                         Util.DISKS_ICON,
                                         "Save the script",
-                                        new Integer(KeyEvent.VK_S),
+                                        KeyEvent.VK_S,
                                         KeyStroke.getKeyStroke(KeyEvent.VK_S,menuShortcutKeyMask)) {
             public void actionPerformed(ActionEvent e) {
                 String filename = (String) textArea.getDocument().getProperty("filename");
@@ -1219,7 +1248,7 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
         saveAsFileAction = new UserAction(I18n.getString("SaveAs"),
                                           Util.SAVE_AS_ICON,
                                           "Save script as",
-                                          new Integer(KeyEvent.VK_A),
+                                            KeyEvent.VK_A,
                                           null) {
             public void actionPerformed(ActionEvent e) {
                 saveAsFile();
@@ -1229,7 +1258,7 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
         exportAction = new UserAction(I18n.getString("Export"),
                                       Util.EXPORT_ICON,
                                       "Export result set",
-                                      new Integer(KeyEvent.VK_E),
+                                        KeyEvent.VK_E,
                                       null) {
             public void actionPerformed(ActionEvent e) {
                 export();
@@ -1239,7 +1268,7 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
         chartAction = new UserAction(I18n.getString("Chart"),
                                      Util.CHART_ICON,
                                      "Chart current data set",
-                                     new Integer(KeyEvent.VK_E),
+                                     KeyEvent.VK_E,
                                      null) {
             public void actionPerformed(ActionEvent e) {
                 new LineChart((KTableModel) table.getModel());
@@ -1251,13 +1280,13 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
         stopAction = new UserAction(I18n.getString("Stop"),
                                     Util.STOP_ICON,
                                     "Stop the query",
-                                    new Integer(KeyEvent.VK_S),
+                                    KeyEvent.VK_S,
                                     null) {
             public void actionPerformed(ActionEvent e) {
-                if (worker != null) {
-                    worker.interrupt();
+                if (editorPanel != null && editorPanel.isExecuting()) {
+                    editorPanel.stopExecution();
                     stopAction.setEnabled(false);
-                    textArea.setCursor(new Cursor(Cursor.DEFAULT_CURSOR));
+                    editorPanel.getTextArea().setCursor(new Cursor(Cursor.DEFAULT_CURSOR));
                 }
             }
         };
@@ -1266,7 +1295,7 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
         openInExcel = new UserAction(I18n.getString("OpenInExcel"),
                                      Util.EXCEL_ICON,
                                      "Open in Excel",
-                                     new Integer(KeyEvent.VK_O),
+                                     KeyEvent.VK_O,
                                      null) {
             
             public void actionPerformed(ActionEvent e) {
@@ -1284,7 +1313,7 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
         executeAction = new UserAction(I18n.getString("Execute"),
                                        Util.TABLE_SQL_RUN_ICON,
                                        "Execute the full or highlighted text as a query",
-                                       new Integer(KeyEvent.VK_E),
+                                        KeyEvent.VK_E,
                                        KeyStroke.getKeyStroke(KeyEvent.VK_E,menuShortcutKeyMask)) {
             
             public void actionPerformed(ActionEvent e) {
@@ -1296,7 +1325,7 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
         executeCurrentLineAction = new UserAction(I18n.getString("ExecuteCurrentLine"),
                                                   Util.RUN_ICON,
                                                   "Execute the current line as a query",
-                                                  new Integer(KeyEvent.VK_ENTER),
+                                                  KeyEvent.VK_ENTER,
                                                   KeyStroke.getKeyStroke(KeyEvent.VK_ENTER,menuShortcutKeyMask)) {
             
             public void actionPerformed(ActionEvent e) {
@@ -1308,7 +1337,7 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
         refreshAction = new UserAction(I18n.getString("Refresh"),
                                        Util.REFRESH_ICON,
                                        "Refresh the result set",
-                                       new Integer(KeyEvent.VK_R),
+                                       KeyEvent.VK_R,
                                        KeyStroke.getKeyStroke(KeyEvent.VK_Y,menuShortcutKeyMask | Event.SHIFT_MASK)) {
             
             public void actionPerformed(ActionEvent e) {
@@ -1319,7 +1348,7 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
         aboutAction = new UserAction(I18n.getString("About"),
                                      Util.ABOUT_ICON,
                                      "About Studio for kdb+",
-                                     new Integer(KeyEvent.VK_E),
+                                     KeyEvent.VK_E,
                                      null) {
             
             public void actionPerformed(ActionEvent e) {
@@ -1330,7 +1359,7 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
         exitAction = new UserAction(I18n.getString("Exit"),
                                     Util.BLANK_ICON,
                                     "Close this window",
-                                    new Integer(KeyEvent.VK_X),
+                                    KeyEvent.VK_X,
                                     null) {
             
             public void actionPerformed(ActionEvent e) {
@@ -1342,7 +1371,7 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
         settingsAction = new UserAction("Settings",
                 Util.BLANK_ICON,
                 "Settings",
-                new Integer(KeyEvent.VK_S),
+                KeyEvent.VK_S,
                 null) {
 
             public void actionPerformed(ActionEvent e) {
@@ -1353,7 +1382,7 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
         codeKxComAction = new UserAction("code.kx.com",
                                          Util.TEXT_ICON,
                                          "Open code.kx.com",
-                                         new Integer(KeyEvent.VK_C),
+                                         KeyEvent.VK_C,
                                          null) {
             
             public void actionPerformed(ActionEvent e) {
@@ -1683,37 +1712,36 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
     }
 
     private void selectServerName() {
-        String selection = comboServer.getSelectedItem().toString();
-        if(! Config.getInstance().getServerNames().contains(selection)) return;
-
-        setServer(Config.getInstance().getServer(selection));
+        Object sel = comboServer.getSelectedItem();
+        if (sel == null) return;
+        Server s = Config.getInstance().getServer(sel.toString());
+        if (s == null) return;
+        discoveryServer = s;
+        setServer(s);
+        serviceBrowserPanel.loadForServer(s);
         rebuildToolbar();
         toolbar.validate();
         toolbar.repaint();
     }
 
     private void refreshConnection() {
-        if (server == null) {
+        Server activeServer = activeServer();
+        if (activeServer == null) {
             txtServer.setText("");
             txtServer.setToolTipText("Select connection details");
         } else {
-            txtServer.setText(server.getConnectionString(false));
-            txtServer.setToolTipText(server.getConnectionString(true));
+            txtServer.setText(activeServer.getConnectionString(false));
+            txtServer.setToolTipText(activeServer.getConnectionString(true));
         }
     }
 
     private void toolbarAddServerSelection() {
-        Collection<String> names = Config.getInstance().getServerNames();
-        String name = server == null ? "" : server.getFullName();
-        if (!names.contains(name)) {
-            List<String> newNames = new ArrayList<>();
-            newNames.add(name);
-            newNames.addAll(names);
-            names = newNames;
-        }
+        // Show all configured servers; do NOT inject the active connection if it came from a discovery result
+        List<String> names = new ArrayList<>(Config.getInstance().getServerNames());
+        String name = discoveryServer == null ? "" : discoveryServer.getFullName();
         comboServer = new JComboBox<>(names.toArray(new String[0]));
         comboServer.setToolTipText("Select the server context");
-        comboServer.setSelectedItem(name);
+        if (!name.isEmpty()) comboServer.setSelectedItem(name);
         comboServer.addActionListener(e->selectServerName());
         // Cut the width if it is too wide.
         comboServer.setMinimumSize(new Dimension(0, 0));
@@ -1740,7 +1768,9 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
         if (toolbar != null) {
             toolbar.removeAll();
             toolbarAddServerSelection();
-            if (server == null) {
+            Server activeServer = activeServer();
+            boolean executing = (editorPanel != null && editorPanel.isExecuting());
+            if (activeServer == null) {
                 addServerAction.setEnabled(true);
                 editServerAction.setEnabled(false);
                 removeServerAction.setEnabled(false);
@@ -1748,10 +1778,10 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
                 executeAction.setEnabled(false);
                 executeCurrentLineAction.setEnabled(false);
                 refreshAction.setEnabled(false);
-            }
-            else {
-                executeAction.setEnabled(true);
-                executeCurrentLineAction.setEnabled(true);
+            } else {
+                executeAction.setEnabled(!executing);
+                executeCurrentLineAction.setEnabled(!executing);
+                stopAction.setEnabled(executing);
                 editServerAction.setEnabled(true);
                 removeServerAction.setEnabled(true);
             }
@@ -1852,43 +1882,241 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
     private WindowListChangedEventListener windowListChangedEventListener;
 
     private int dividerLastPosition; // updated from property change listener
-    private void minMaxDivider(){
-      //BasicSplitPaneDivider divider = ((BasicSplitPaneUI)splitpane.getUI()).getDivider();
-      //((JButton)divider.getComponent(0)).doClick();
-      //((JButton)divider.getComponent(1)).doClick();
-      if(splitpane.getDividerLocation()>=splitpane.getMaximumDividerLocation()){
-        // Minimize editor pane
-        splitpane.getTopComponent().setMinimumSize(new Dimension());
-        splitpane.getBottomComponent().setMinimumSize(null);
-        splitpane.setDividerLocation(0.);
-        splitpane.setResizeWeight(0.);
-      }
-      else if(splitpane.getDividerLocation()<=splitpane.getMinimumDividerLocation()){
-        // Restore editor pane
-        splitpane.getTopComponent().setMinimumSize(null);
-        splitpane.getBottomComponent().setMinimumSize(null);
-        splitpane.setResizeWeight(0.);
-        // Could probably catch resize edge-cases etc in pce too
-        if(dividerLastPosition>=splitpane.getMaximumDividerLocation()||dividerLastPosition<=splitpane.getMinimumDividerLocation())
-          dividerLastPosition=splitpane.getMaximumDividerLocation()/2;
-        splitpane.setDividerLocation(dividerLastPosition);
-      }
-      else{
-        // Maximize editor pane
-        splitpane.getBottomComponent().setMinimumSize(new Dimension());
-        splitpane.getTopComponent().setMinimumSize(null);
-        splitpane.setDividerLocation(splitpane.getOrientation()==VERTICAL_SPLIT?splitpane.getHeight()-splitpane.getDividerSize():splitpane.getWidth()-splitpane.getDividerSize());
-        splitpane.setResizeWeight(1.);
-      }
+    private void minMaxDivider() {
+        if (editorPanel != null) editorPanel.minMaxDivider();
     }
 
     private void toggleDividerOrientation() {
-        if (splitpane.getOrientation() == JSplitPane.VERTICAL_SPLIT)
-            splitpane.setOrientation(JSplitPane.HORIZONTAL_SPLIT);
-        else
-            splitpane.setOrientation(JSplitPane.VERTICAL_SPLIT);
+        if (editorPanel != null) editorPanel.toggleOrientation();
+    }
 
-        splitpane.setDividerLocation(0.5);
+    // ─────────────────────────── Editor-panel helpers ────────────────────────
+
+    /**
+     * Syncs the legacy StudioPanel fields (textArea, tabbedPane, splitpane, server, table)
+     * from the given EditorTabPanel so that all existing action code continues to work.
+     */
+    private void syncFromTab(EditorTabPanel tab) {
+        textArea  = tab.getTextArea();
+        tabbedPane = tab.getResultTabs();
+        splitpane  = tab.getSplitPane();
+        table      = tab.getTable();
+        server     = tab.getServer();
+
+        // Sync editor actions
+        copyAction      = tab.getCopyAction();
+        cutAction       = tab.getCutAction();
+        pasteAction     = tab.getPasteAction();
+        selectAllAction = tab.getSelectAllAction();
+        findAction      = tab.getFindAction();
+        replaceAction   = tab.getReplaceAction();
+        undoAction      = tab.getUndoAction();
+        redoAction      = tab.getRedoAction();
+    }
+
+    /** Returns the server of the editor panel, or the legacy server field as fallback. */
+    private Server activeServer() {
+        return (editorPanel != null) ? editorPanel.getServer() : server;
+    }
+
+    /**
+     * Called by ServiceBrowserPanel when the user single-clicks a service entry.
+     * Binds the editor immediately, then probes the connection on a background thread.
+     * For new discovery entries the probe is attempted anonymously first; if the server
+     * requires authentication the credential dialog is shown only then.
+     */
+    public void onServiceSelected(ServiceEntry entry) {
+        if (entry.getServer() != null) {
+            // Already-resolved server (parent entry or previously connected service)
+            bindToEditor(entry.getServer());
+            probeInBackground(entry, entry.getServer());
+            return;
+        }
+
+        // New discovery entry — try anonymous connection first so that servers that
+        // don't require a password connect without showing a dialog at all.
+        Server anonServer = entry.toServer("", "");
+        bindToEditor(anonServer);
+
+        new SwingWorker() {
+            boolean anonOk = false;
+            boolean needsAuth = false;
+
+            public Object construct() {
+                kx.c conn = null;
+                try {
+                    conn = ConnectionPool.getInstance().leaseConnection(anonServer);
+                    // leaseConnection() only constructs kx.c; checkConnected() actually
+                    // opens the TCP socket and performs the kdb+ auth handshake.
+                    ConnectionPool.getInstance().checkConnected(conn);
+                    anonOk = true;
+                } catch (c.K4Exception e) {
+                    // Any K4Exception from reconnect() means auth required.
+                    needsAuth = true;
+                } catch (Exception ignored) {
+                } finally {
+                    if (conn != null)
+                        ConnectionPool.getInstance().freeConnection(anonServer, conn);
+                }
+                return null;
+            }
+
+            public void finished() {
+                if (anonOk) {
+                    // Anonymous connection succeeded — no credentials required
+                    entry.setServer(anonServer);
+                    sessionCredentials.put(entry.getKey(), new String[]{"", "",
+                            anonServer.getAuthenticationMechanism(),
+                            String.valueOf(anonServer.getUseTLS())});
+                    serviceBrowserPanel.markOk(entry);
+                    new ReloadQKeywords(anonServer);
+                } else if (needsAuth) {
+                    // Server requires credentials — check session cache, then prompt.
+                    // If cached credentials are also wrong, probeInBackground will evict
+                    // them and call promptCredentialsAndConnect to start the retry loop.
+                    String[] creds = sessionCredentials.get(entry.getKey());
+                    if (creds != null) {
+                        Server credServer = entry.toServer(creds[0], creds[1],
+                                creds[2], Boolean.parseBoolean(creds[3]));
+                        bindToEditor(credServer);
+                        probeInBackground(entry, credServer);
+                    } else {
+                        promptCredentialsAndConnect(entry, null);
+                    }
+                } else {
+                    // Non-auth failure (e.g. connection refused)
+                    serviceBrowserPanel.markError(entry);
+                }
+            }
+        }.start();
+    }
+
+    /** Binds a server to the editor panel and syncs all UI state. */
+    private void bindToEditor(Server s) {
+        server = s;
+        editorPanel.bindServer(s);
+        syncFromTab(editorPanel);
+        rebuildToolbar();
+        rebuildMenuBar();
+        editorPanel.getTextArea().requestFocus();
+    }
+
+    /**
+     * Probes a connection in the background by leasing it and calling checkConnected()
+     * to actually open the TCP socket and perform the auth handshake (leaseConnection
+     * alone only constructs the kx.c object; it never connects).
+     *
+     * On K4Exception (wrong credentials) the session cache is evicted and
+     * promptCredentialsAndConnect() is called so the user can retry.
+     */
+    private void probeInBackground(ServiceEntry entry, Server s) {
+        new SwingWorker() {
+            boolean success   = false;
+            boolean authFailed = false;
+
+            public Object construct() {
+                kx.c conn = null;
+                try {
+                    conn = ConnectionPool.getInstance().leaseConnection(s);
+                    ConnectionPool.getInstance().checkConnected(conn);
+                    success = true;
+                } catch (c.K4Exception e) {
+                    authFailed = true;
+                } catch (Throwable ignored) {
+                } finally {
+                    if (conn != null)
+                        ConnectionPool.getInstance().freeConnection(s, conn);
+                }
+                return null;
+            }
+
+            public void finished() {
+                if (success) {
+                    entry.setServer(s);
+                    sessionCredentials.put(entry.getKey(), new String[]{s.getUsername(), s.getPassword(),
+                            s.getAuthenticationMechanism(), String.valueOf(s.getUseTLS())});
+                    serviceBrowserPanel.markOk(entry);
+                    new ReloadQKeywords(s);
+                } else if (authFailed) {
+                    // Evict any cached credentials that turned out to be wrong
+                    sessionCredentials.remove(entry.getKey());
+                    promptCredentialsAndConnect(entry, "Invalid username or password.");
+                } else {
+                    serviceBrowserPanel.markError(entry);
+                }
+            }
+        }.start();
+    }
+
+    /**
+     * Shows the credential dialog (with an optional error message for retries),
+     * then probes the connection.  Calling probeInBackground on failure loops
+     * back here, giving an unlimited retry cycle until the user cancels.
+     */
+    private void promptCredentialsAndConnect(ServiceEntry entry, String errorMessage) {
+        String[] creds = CredentialDialog.prompt(frame, entry.getName() + " @ " + entry.getKey(), errorMessage);
+        if (creds == null) {
+            // User cancelled — leave the entry marked as error
+            serviceBrowserPanel.markError(entry);
+            return;
+        }
+        Server credServer = entry.toServer(creds[0], creds[1],
+                creds[2], Boolean.parseBoolean(creds[3]));
+        bindToEditor(credServer);
+        probeInBackground(entry, credServer);
+    }
+
+    /** Creates the single EditorPanel wired up to the StudioPanel execution callback. */
+    private EditorTabPanel createEditorPanel() {
+        return new EditorTabPanel(new EditorTabPanel.ExecutionCallback() {
+            public JFrame getFrame() { return frame; }
+
+            public void onExecutionStarted() {
+                stopAction.setEnabled(true);
+                executeAction.setEnabled(false);
+                executeCurrentLineAction.setEnabled(false);
+                refreshAction.setEnabled(false);
+                exportAction.setEnabled(false);
+                chartAction.setEnabled(false);
+                openInExcel.setEnabled(false);
+            }
+
+            public void onExecutionFinished(JTable resultTable) {
+                table = resultTable;
+                stopAction.setEnabled(false);
+                executeAction.setEnabled(true);
+                executeCurrentLineAction.setEnabled(true);
+                refreshAction.setEnabled(true);
+                exportAction.setEnabled(resultTable != null);
+                chartAction.setEnabled(resultTable != null);
+                openInExcel.setEnabled(resultTable != null);
+
+                // Update status indicator in the service browser
+                if (editorPanel != null && editorPanel.getServer() != null
+                        && serviceBrowserPanel != null) {
+                    serviceBrowserPanel.markOk(new ServiceEntry(
+                            editorPanel.getServer().getName(),
+                            editorPanel.getServer().getHost(),
+                            editorPanel.getServer().getPort()));
+                }
+            }
+
+            public void onExecutionError() {
+                stopAction.setEnabled(false);
+                executeAction.setEnabled(true);
+                executeCurrentLineAction.setEnabled(true);
+            }
+
+            public void onConnectionError() {
+                if (editorPanel != null && editorPanel.getServer() != null
+                        && serviceBrowserPanel != null) {
+                    serviceBrowserPanel.handleDisconnection(new ServiceEntry(
+                            editorPanel.getServer().getName(),
+                            editorPanel.getServer().getHost(),
+                            editorPanel.getServer().getPort()));
+                }
+            }
+        });
     }
 
     public StudioPanel(Server server,String filename) {
@@ -1905,35 +2133,42 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
 
         windowListMonitor.addEventListener(windowListChangedEventListener);
 
-        splitpane = new JSplitPane();
         frame = new JFrame();
         windowList.add(this);
 
+        // ── Legacy split pane (kept for minMaxDivider / toggleOrientation actions) ──
+        splitpane = new JSplitPane();
+        splitpane.setOrientation(JSplitPane.VERTICAL_SPLIT);
+        splitpane.setContinuousLayout(true);
+
+        // ── Bootstrap textArea for legacy action extraction ───────────────────
         initDocument();
         setServer(server);
+        discoveryServer = server;
 
         menubar = createMenuBar();
         toolbar = createToolbar();
 
-        tabbedPane = new JTabbedPane();
-        splitpane.setBottomComponent(tabbedPane);
-        splitpane.setOneTouchExpandable(true);
-        splitpane.setOrientation(JSplitPane.VERTICAL_SPLIT);
-        try {
-            Component divider = ((BasicSplitPaneUI) splitpane.getUI()).getDivider();
+        // ── Single editor panel (right side) ──────────────────────────────
+        editorPanel = createEditorPanel();
+        editorPanel.bindServer(server);
 
-            divider.addMouseListener(new MouseAdapter() {
-                
-                                     public void mouseClicked(MouseEvent event) {
-                                         if (event.getClickCount() == 2)
-                                             toggleDividerOrientation();
-                                     }
-                                 });
-        }
-        catch (ClassCastException e) {
-        }
-        splitpane.setContinuousLayout(true);
+        // Sync legacy fields (textArea, splitpane, tabbedPane, actions) from editor panel
+        syncFromTab(editorPanel);
 
+        // ── Service browser (left pane) ────────────────────────────────────
+        serviceBrowserPanel = new ServiceBrowserPanel();
+        serviceBrowserPanel.setSelectionListener(entry -> onServiceSelected(entry));
+
+        // ── Outer horizontal split ─────────────────────────────────────────
+        JSplitPane outerSplit = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT,
+                serviceBrowserPanel, editorPanel);
+        outerSplit.setDividerLocation(220);
+        outerSplit.setOneTouchExpandable(true);
+        outerSplit.setContinuousLayout(true);
+        outerSplit.setResizeWeight(0.0);
+
+        // ── Frame layout ───────────────────────────────────────────────────
         Dimension screenSize = Toolkit.getDefaultToolkit().getScreenSize();
 
         frame.setJMenuBar(menubar);
@@ -1945,35 +2180,45 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
 
         refreshFrameTitle();
 
-        frame.getContentPane().add(toolbar,BorderLayout.NORTH);
-        frame.getContentPane().add(splitpane,BorderLayout.CENTER);
-        // frame.setSize(frame.getContentPane().getPreferredSize());
+        frame.getContentPane().add(toolbar, BorderLayout.NORTH);
+        frame.getContentPane().add(outerSplit, BorderLayout.CENTER);
 
         frame.setDefaultCloseOperation(WindowConstants.DO_NOTHING_ON_CLOSE);
         frame.addWindowListener(this);
         frame.setSize((int) (0.8 * screenSize.width),
                       (int) (0.8 * screenSize.height));
-
-        frame.setLocation(((int) Math.max(0,(screenSize.width - frame.getWidth()) / 2.0)),
-                          (int) (Math.max(0,(screenSize.height - frame.getHeight()) / 2.0)));
+        frame.setLocation(
+                (int) Math.max(0, (screenSize.width  - frame.getWidth())  / 2.0),
+                (int) Math.max(0, (screenSize.height - frame.getHeight()) / 2.0));
 
         frame.setIconImage(Util.LOGO_ICON.getImage());
-
-        //     frame.pack();
         frame.setVisible(true);
-        splitpane.setDividerLocation(0.5);
 
-        textArea.requestFocus();
-        splitpane.addPropertyChangeListener(JSplitPane.DIVIDER_LOCATION_PROPERTY,new PropertyChangeListener(){
-          public void propertyChange(PropertyChangeEvent pce){
-            String s=splitpane.getDividerLocation()>=splitpane.getMaximumDividerLocation()?I18n.getString("MinimizeEditorPane"):splitpane.getDividerLocation()<=splitpane.getMinimumDividerLocation()?I18n.getString("RestoreEditorPane"):I18n.getString("MaximizeEditorPane");
-            minMaxDividerAction.putValue(Action.SHORT_DESCRIPTION,s);
-            minMaxDividerAction.putValue(Action.NAME,s);
-            if(splitpane.getDividerLocation()<splitpane.getMaximumDividerLocation()&&splitpane.getDividerLocation()>splitpane.getMinimumDividerLocation())
-              dividerLastPosition=splitpane.getDividerLocation();
-          }
+        // Set divider after frame is visible; also load service browser for initial server
+        SwingUtilities.invokeLater(() -> {
+            editorPanel.getSplitPane().setDividerLocation(0.5);
+            editorPanel.getTextArea().requestFocus();
+            if (discoveryServer != null) {
+                serviceBrowserPanel.loadForServer(discoveryServer);
+            }
         });
-        dividerLastPosition=splitpane.getDividerLocation();
+
+        // Legacy splitpane property change listener (for minMaxDivider label)
+        splitpane.addPropertyChangeListener(JSplitPane.DIVIDER_LOCATION_PROPERTY, new PropertyChangeListener() {
+            public void propertyChange(PropertyChangeEvent pce) {
+                String s = splitpane.getDividerLocation() >= splitpane.getMaximumDividerLocation()
+                        ? I18n.getString("MinimizeEditorPane")
+                        : splitpane.getDividerLocation() <= splitpane.getMinimumDividerLocation()
+                                ? I18n.getString("RestoreEditorPane")
+                                : I18n.getString("MaximizeEditorPane");
+                minMaxDividerAction.putValue(Action.SHORT_DESCRIPTION, s);
+                minMaxDividerAction.putValue(Action.NAME, s);
+                if (splitpane.getDividerLocation() < splitpane.getMaximumDividerLocation()
+                        && splitpane.getDividerLocation() > splitpane.getMinimumDividerLocation())
+                    dividerLastPosition = splitpane.getDividerLocation();
+            }
+        });
+        dividerLastPosition = 300;
     }
 
     public void update(Observable obs,Object obj) {
@@ -2029,42 +2274,19 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
     }
 
     public void refreshQuery() {
-        table = null;
-        executeK4Query(lastQuery);
+        if (editorPanel != null) editorPanel.refreshQuery();
     }
 
     public void executeQueryCurrentLine() {
-        executeQuery(getCurrentLineEditorText(textArea));
+        if (editorPanel != null) editorPanel.executeQueryCurrentLine();
     }
 
     public void executeQuery() {
-        executeQuery(getEditorText(textArea));
+        if (editorPanel != null) editorPanel.executeQuery();
     }
 
     private void executeQuery(String text) {
-        table = null;
-
-        if (text == null) {
-            JOptionPane.showMessageDialog(frame,
-                                          "\nNo text available to submit to server.\n\n",
-                                          "Studio for kdb+",
-                                          JOptionPane.OK_OPTION,
-                                          Util.INFORMATION_ICON);
-
-            return;
-        }
-
-        refreshAction.setEnabled(false);
-        stopAction.setEnabled(true);
-        executeAction.setEnabled(false);
-        executeCurrentLineAction.setEnabled(false);
-        exportAction.setEnabled(false);
-        chartAction.setEnabled(false);
-        openInExcel.setEnabled(false);
-
-        executeK4Query(text);
-
-        lastQuery = text;
+        if (editorPanel != null) editorPanel.executeQuery(text);
     }
 
     private String getEditorText(JEditorPane editor) {

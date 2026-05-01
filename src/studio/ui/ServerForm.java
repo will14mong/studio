@@ -69,6 +69,9 @@ public class ServerForm extends EscapeDialog {
             }
         });
         getRootPane().setDefaultButton(okButton);
+
+        // Load discovery query (outside generated block)
+        discoveryQueryArea.setText(s.getDiscoveryQuery());
     }
         
     /** This method is called from within the constructor to
@@ -147,6 +150,15 @@ public class ServerForm extends EscapeDialog {
 
     jLabel2.setText("Use TLS");
 
+    discoveryQueryLabel = new javax.swing.JLabel();
+    discoveryQueryLabel.setText("Discovery Query");
+    discoveryQueryArea = new javax.swing.JTextArea(3, 30);
+    discoveryQueryArea.setLineWrap(true);
+    discoveryQueryArea.setWrapStyleWord(true);
+    discoveryQueryArea.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
+    discoveryQueryArea.setToolTipText("Optional kdb+ query sent to this server to discover sub-services (e.g. .srv.services[])");
+    discoveryQueryScroll = new javax.swing.JScrollPane(discoveryQueryArea);
+
     GroupLayout layout = new GroupLayout(getContentPane());
     getContentPane().setLayout(layout);
     layout.setHorizontalGroup(
@@ -161,7 +173,8 @@ public class ServerForm extends EscapeDialog {
           .addComponent(usernameLabel)
           .addComponent(passwordLabel)
           .addComponent(passwordLabel1)
-          .addComponent(jLabel1))
+          .addComponent(jLabel1)
+          .addComponent(discoveryQueryLabel))
         .addPreferredGap(RELATED, 21, Short.MAX_VALUE)
         .addGroup(layout.createParallelGroup(LEADING)
           .addGroup(layout.createSequentialGroup()
@@ -180,7 +193,8 @@ public class ServerForm extends EscapeDialog {
               .addComponent(jCheckBox2)
               .addComponent(port, DEFAULT_SIZE, 418, Short.MAX_VALUE)
               .addComponent(hostname, DEFAULT_SIZE, 418, Short.MAX_VALUE)
-              .addComponent(logicalName, DEFAULT_SIZE, 418, Short.MAX_VALUE))
+              .addComponent(logicalName, DEFAULT_SIZE, 418, Short.MAX_VALUE)
+              .addComponent(discoveryQueryScroll, DEFAULT_SIZE, 418, Short.MAX_VALUE))
             .addContainerGap())))
       .addGroup(TRAILING, layout.createSequentialGroup()
         .addGroup(layout.createParallelGroup(LEADING)
@@ -237,6 +251,10 @@ public class ServerForm extends EscapeDialog {
           .addComponent(jLabel1)
           .addComponent(SampleTextOnBackgroundTextField, PREFERRED_SIZE, DEFAULT_SIZE, PREFERRED_SIZE))
         .addPreferredGap(RELATED)
+        .addGroup(layout.createParallelGroup(LEADING)
+          .addComponent(discoveryQueryLabel)
+          .addComponent(discoveryQueryScroll, DEFAULT_SIZE, 60, Short.MAX_VALUE))
+        .addPreferredGap(RELATED)
         .addGroup(layout.createParallelGroup(BASELINE)
           .addComponent(okButton)
           .addComponent(cancelButton)
@@ -285,6 +303,7 @@ public class ServerForm extends EscapeDialog {
             s.setUseTLS(jCheckBox2.isSelected());
             DefaultComboBoxModel dcbm= (DefaultComboBoxModel)authenticationMechanism.getModel();
             s.setAuthenticationMechanism((String)dcbm.getSelectedItem());
+            s.setDiscoveryQuery(discoveryQueryArea.getText().trim());
 
 
       /*      if( testConnection.isSelected())
@@ -351,6 +370,11 @@ private void SampleTextOnBackgroundTextFieldActionPerformed(java.awt.event.Actio
 }//GEN-LAST:event_SampleTextOnBackgroundTextFieldActionPerformed
 
     
+  // Discovery query fields (outside generated block)
+  private javax.swing.JTextArea discoveryQueryArea;
+  private javax.swing.JScrollPane discoveryQueryScroll;
+  private javax.swing.JLabel discoveryQueryLabel;
+
   // Variables declaration - do not modify//GEN-BEGIN:variables
   private javax.swing.JButton EditColorButton;
   private javax.swing.JTextField SampleTextOnBackgroundTextField;

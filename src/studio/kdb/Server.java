@@ -16,6 +16,7 @@ public class Server {
     private String password;
     private boolean useTLS = false;
     private ServerTreeNode folder = null;
+    private String discoveryQuery = "";
 
     public Properties getAsProperties() {
         Properties p = new Properties();
@@ -25,7 +26,16 @@ public class Server {
         p.put("USERNAME", username);
         p.put("PASSWORD", password);
         p.put("USETLS", useTLS);
+        p.put("DISCOVERYQUERY", discoveryQuery != null ? discoveryQuery : "");
         return p;
+    }
+
+    public String getDiscoveryQuery() {
+        return discoveryQuery != null ? discoveryQuery : "";
+    }
+
+    public void setDiscoveryQuery(String discoveryQuery) {
+        this.discoveryQuery = discoveryQuery != null ? discoveryQuery : "";
     }
 
     public String getAuthenticationMechanism() {
@@ -86,7 +96,7 @@ public class Server {
 
     @Override
     public int hashCode() {
-        return name.hashCode();
+        return Objects.hash(name, host, port, username, password, authenticationMechanism, useTLS);
     }
 
     public Server(Server s) {
@@ -98,6 +108,7 @@ public class Server {
         this.backgroundColor = s.backgroundColor;
         this.authenticationMechanism = s.authenticationMechanism;
         this.useTLS = s.useTLS;
+        this.discoveryQuery = s.discoveryQuery;
     }
 
     public Server(String name, String host, int port, String username, String password, Color backgroundColor, String authenticationMechanism, boolean useTLS) {
