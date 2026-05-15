@@ -161,6 +161,69 @@ public class Config {
         save();
     }
 
+    public String getSnippetsLocation() {
+        return p.getProperty("snippets.location", PATH + "snippets");
+    }
+
+    public void setSnippetsLocation(String path) {
+        p.setProperty("snippets.location", path);
+        save();
+    }
+
+    public String[] getSnippetNames() {
+        File dir = new File(getSnippetsLocation());
+        if (!dir.exists()) return new String[0];
+        File[] files = dir.listFiles(new FilenameFilter() {
+            public boolean accept(File d, String name) {
+                return name.endsWith(".snippets");
+            }
+        });
+        if (files == null) return new String[0];
+        Arrays.sort(files);
+        String[] names = new String[files.length];
+        for (int i = 0; i < files.length; i++)
+            names[i] = files[i].getName().substring(0, files[i].getName().length() - ".snippets".length());
+        return names;
+    }
+
+    public void saveSnippet(String name, String content) throws IOException {
+        File dir = new File(getSnippetsLocation());
+        if (!dir.exists()) dir.mkdirs();
+        File file = new File(dir, name + ".snippets");
+        Writer w = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(file), "UTF-8"));
+        w.write(content);
+        w.close();
+    }
+
+    public String loadSnippetContent(String name) throws IOException {
+        File file = new File(getSnippetsLocation(), name + ".snippets");
+        StringBuilder sb = new StringBuilder();
+        BufferedReader reader = new BufferedReader(
+                new InputStreamReader(new FileInputStream(file), "UTF-8"));
+        String line;
+        while ((line = reader.readLine()) != null) {
+            sb.append(line);
+            sb.append(System.getProperty("line.separator"));
+        }
+        reader.close();
+        return sb.toString();
+    }
+
+    public void moveSnippets(String oldPath, String newPath) {
+        File oldDir = new File(oldPath);
+        File newDir = new File(newPath);
+        if (!oldDir.exists()) return;
+        newDir.mkdirs();
+        File[] files = oldDir.listFiles(new FilenameFilter() {
+            public boolean accept(File d, String name) {
+                return name.endsWith(".snippets");
+            }
+        });
+        if (files == null) return;
+        for (File f : files)
+            f.renameTo(new File(newDir, f.getName()));
+    }
+
     public String getLookAndFeel() {
         return p.getProperty("lookandfeel");
     }

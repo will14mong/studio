@@ -113,10 +113,12 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
 
     private final static int MAX_SERVERS_TO_CLONE = 20;
 
+    private String currentSnippetName = null;
+
     public void refreshFrameTitle() {
         String s = (textArea != null) ? (String) textArea.getDocument().getProperty("filename") : null;
         if (s == null)
-            s = "Script" + myScriptNumber;
+            s = (currentSnippetName != null) ? "[snippet] " + currentSnippetName : "Script" + myScriptNumber;
         String title = s.replace('\\', '/');
         Server activeServer = activeServer();
         frame.setTitle(title + (getModified() ? " (not saved) " : "")
@@ -737,6 +739,7 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
             textArea.getDocument().putProperty("filename",null);
             windowListMonitor.fireMyEvent(new WindowListChangedEvent(this));
             initDocument();
+            currentSnippetName = null;
             refreshFrameTitle();
         }
         catch (BadLocationException ex) {
@@ -759,6 +762,28 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
     // returns true to continue
     public boolean saveIfModified(String filename) {
         if (getModified()) {
+            if (currentSnippetName != null) {
+                int choice = JOptionPane.showOptionDialog(frame,
+                                                          "Snippet '" + currentSnippetName + "' has unsaved changes.\nSave now?",
+                                                          "Save snippet?",
+                                                          JOptionPane.YES_NO_CANCEL_OPTION,
+                                                          JOptionPane.QUESTION_MESSAGE,
+                                                          Util.QUESTION_ICON,
+                                                          null,
+                                                          null);
+                if (choice == JOptionPane.YES_OPTION) {
+                    try {
+                        Config.getInstance().saveSnippet(currentSnippetName, textArea.getText());
+                    } catch (IOException e) {
+                        return false;
+                    }
+                } else if ((choice == JOptionPane.CANCEL_OPTION) || (choice == JOptionPane.CLOSED_OPTION)) {
+                    return false;
+                }
+                currentSnippetName = null;
+                return true;
+            }
+
             int choice = JOptionPane.showOptionDialog(frame,
                                                       "Changes not saved.\nSave now?",
                                                       "Save changes?",
@@ -844,6 +869,7 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
             windowListMonitor.fireMyEvent(new WindowListChangedEvent(this));
             initDocument();
             textArea.setCaretPosition(0);
+            currentSnippetName = null;
             refreshFrameTitle();
         }
         catch (BadLocationException ex) {
@@ -1482,6 +1508,115 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
         return true;
     }
 
+    private JMenu buildSnippetsMenu() {
+        JMenu menu = new JMenu(I18n.getString("Snippets"));
+
+        // ── Save Snippet submenu ───────────────────────────────────────────
+        JMenu saveMenu = new JMenu(I18n.getString("SaveSnippet"));
+
+        JMenuItem saveAsNew = new JMenuItem(I18n.getString("SaveAsNewSnippet"));
+        saveAsNew.addActionListener(new ActionListener() {
+            public void actionPerformed(ActionEvent e) {
+                String name = JOptionPane.showInputDialog(frame,
+                        "Enter snippet name:", "Save as new snippet", JOptionPane.PLAIN_MESSAGE);
+                if (name == null || name.trim().isEmpty()) return;
+                name = name.trim();
+                try {
+                    Config.getInstance().saveSnippet(name, textArea.getText());
+                    rebuildMenuBar();
+                } catch (IOException ex) {
+                    JOptionPane.showMessageDialog(frame,
+                            "Could not save snippet: " + ex.getMessage(),
+                            "Error", JOptionPane.ERROR_MESSAGE);
+                }
+            }
+        });
+        saveMenu.add(saveAsNew);
+
+        final String[] snippetNames = Config.getInstance().getSnippetNames();
+        if (snippetNames.length > 0) {
+            saveMenu.addSeparator();
+            for (int i = 0; i < snippetNames.length; i++) {
+                final String sname = snippetNames[i];
+                JMenuItem item = new JMenuItem(sname);
+                item.addActionListener(new ActionListener() {
+                    public void actionPerformed(ActionEvent e) {
+                        int choice = JOptionPane.showConfirmDialog(frame,
+                                "Overwrite snippet '" + sname + "'?",
+                                "Overwrite snippet?",
+                                JOptionPane.YES_NO_OPTION, JOptionPane.QUESTION_MESSAGE);
+                        if (choice != JOptionPane.YES_OPTION) return;
+                        try {
+                            Config.getInstance().saveSnippet(sname, textArea.getText());
+                        } catch (IOException ex) {
+                            JOptionPane.showMessageDialog(frame,
+                                    "Could not save snippet: " + ex.getMessage(),
+                                    "Error", JOptionPane.ERROR_MESSAGE);
+                        }
+                    }
+                });
+                saveMenu.add(item);
+            }
+        }
+
+        saveMenu.addSeparator();
+        JMenuItem configureLocation = new JMenuItem(I18n.getString("ConfigureSnippetLocation"));
+        configureLocation.addActionListener(new ActionListener() {
+            public void actionPerformed(ActionEvent e) {
+                JFileChooser chooser = new JFileChooser();
+                chooser.setDialogTitle("Choose snippet location");
+                chooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
+                chooser.setCurrentDirectory(new File(Config.getInstance().getSnippetsLocation()));
+                int option = chooser.showOpenDialog(frame);
+                if (option != JFileChooser.APPROVE_OPTION) return;
+                String oldPath = Config.getInstance().getSnippetsLocation();
+                String newPath = chooser.getSelectedFile().getAbsolutePath();
+                Config.getInstance().moveSnippets(oldPath, newPath);
+                Config.getInstance().setSnippetsLocation(newPath);
+                rebuildMenuBar();
+            }
+        });
+        saveMenu.add(configureLocation);
+        menu.add(saveMenu);
+
+        // ── Load Snippet submenu ───────────────────────────────────────────
+        JMenu loadMenu = new JMenu(I18n.getString("LoadSnippet"));
+        if (snippetNames.length == 0) {
+            JMenuItem empty = new JMenuItem(I18n.getString("NoSnippets"));
+            empty.setEnabled(false);
+            loadMenu.add(empty);
+        } else {
+            for (int i = 0; i < snippetNames.length; i++) {
+                final String sname = snippetNames[i];
+                JMenuItem item = new JMenuItem(sname);
+                item.addActionListener(new ActionListener() {
+                    public void actionPerformed(ActionEvent e) {
+                        String currentFile = (String) textArea.getDocument().getProperty("filename");
+                        if (!saveIfModified(currentFile)) return;
+                        try {
+                            String content = Config.getInstance().loadSnippetContent(sname);
+                            textArea.getDocument().remove(0, textArea.getDocument().getLength());
+                            textArea.getDocument().insertString(0, content, null);
+                            textArea.getDocument().putProperty("filename", null);
+                            initDocument();
+                            textArea.setCaretPosition(0);
+                            currentSnippetName = sname;
+                            refreshFrameTitle();
+                        } catch (Exception ex) {
+                            JOptionPane.showMessageDialog(frame,
+                                    "Could not load snippet: " + ex.getMessage(),
+                                    "Error", JOptionPane.ERROR_MESSAGE);
+                        }
+                    }
+                });
+                loadMenu.add(item);
+            }
+        }
+        menu.add(loadMenu);
+
+        return menu;
+    }
+
     private void rebuildMenuBar() {
         menubar = createMenuBar();
         SwingUtilities.invokeLater(
@@ -1565,6 +1700,8 @@ public class StudioPanel extends JPanel implements Observer,WindowListener {
 //        menu.addSeparator();
 //        menu.add(new JMenuItem(editFontAction));
         menubar.add(menu);
+
+        menubar.add(buildSnippetsMenu());
 
         menu = new JMenu(I18n.getString("Server"));
         menu.setMnemonic(KeyEvent.VK_S);
